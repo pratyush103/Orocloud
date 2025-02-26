@@ -22,11 +22,14 @@ dependencies:
 
   # Document Scanning
   cunning_document_scanner: ^1.2.3
+  flutter_launcher_icons: ^0.14.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: "^0.14.3"
+  flutter_native_splash: "^2.3.6"
 
 flutter:
   uses-material-design: true
@@ -35,4 +38,31 @@ flutter:
   assets:
     - assets/google_logo.png  # Ensure the image exists in the assets folder
 
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/app_logo.png"
+  min_sdk_android: 21 # android min sdk min:16, default 21
+  web:
+    generate: true
+    image_path: "assets/app_logo.png"
+    background_color: "#42A2EE"
+    theme_color: "#2484D0"
+  windows:
+    generate: true
+    image_path: "assets/app_logo.png"
+    icon_size: 48 # min:48, max:256, default: 48
+  macos:
+    generate: true
+    image_path: "assets/app_logo.png"
 
+flutter_native_splash:
+  color: "#FFFFFF" # Use the background color of your icon
+  image: assets/app_logo.png
+  color_dark: "#000000" # Black for dark mode
+  image_dark: assets/app_logo.png
+  android_12:
+    image: assets/app_logo.png
+    icon_background_color: "#42A2EE"
+    image_dark: assets/app_logo.png
+    icon_background_color_dark: "#000000"

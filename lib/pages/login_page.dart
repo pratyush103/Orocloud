@@ -13,32 +13,37 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  String? _message;
+  Color? _messageColor;
 
   void signIn() async {
+    setState(() {
+      _message = null; // Reset message
+    });
+
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
-    if (!_isValidEmail(email)) {
-      _showError("Invalid Email Format");
+    if (email.isEmpty || password.isEmpty) {
+      _showMessage("All fields are required", Colors.redAccent);
       return;
     }
-
-    if (email.isEmpty || password.isEmpty) {
-      _showError("Please fill in all fields");
+    if (!_isValidEmail(email)) {
+      _showMessage("Invalid Email Format", Colors.redAccent);
       return;
     }
 
     try {
       await authService.signInWithEmailPassword(email, password);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Login successful!")),
-        );
-        Navigator.pushReplacementNamed(context, '/profile_page');
+        _showMessage("Login successful!", Colors.greenAccent);
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) Navigator.pushReplacementNamed(context, '/profile_page');
+        });
       }
     } catch (e) {
       if (mounted) {
-        _showError("Incorrect Email or Password");
+        _showMessage("Incorrect Email or Password", Colors.redAccent);
       }
     }
   }
@@ -47,45 +52,31 @@ class _LoginPageState extends State<LoginPage> {
     try {
       await authService.signInWithGoogle();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Google Sign-In Successful!")),
-        );
+        _showMessage("Google Sign-In Successful!", Colors.greenAccent);
       }
     } catch (e) {
       if (mounted) {
-        _showError("Google Sign-In Failed: $e");
+        _showMessage("Google Sign-In Failed: $e", Colors.redAccent);
       }
     }
   }
 
   bool _isValidEmail(String email) {
-    final emailRegex =
-    RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
     return emailRegex.hasMatch(email);
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          textAlign: TextAlign.center, // Center align text inside the SnackBar
-          style: const TextStyle(fontSize: 16),
-        ),
-        backgroundColor: Colors.redAccent,
-        behavior: SnackBarBehavior.floating, // Make the snackbar float
-        margin: const EdgeInsets.symmetric(horizontal: 50, vertical: 20), // Adjust positioning
-      ),
-    );
+  void _showMessage(String message, Color color) {
+    setState(() {
+      _message = message;
+      _messageColor = color;
+    });
   }
-
 
   @override
   Widget build(BuildContext context) {
-    final bool isDarkMode =
-        MediaQuery.of(context).platformBrightness == Brightness.dark;
-    final Color backgroundColor =
-    isDarkMode ? const Color(0xFF2E2E2E) : Colors.grey[50]!;
+    final bool isDarkMode = MediaQuery.of(context).platformBrightness == Brightness.dark;
+    final Color backgroundColor = isDarkMode ? const Color(0xFF2E2E2E) : Colors.grey[50]!;
     final Color textColor = isDarkMode ? Colors.white : Colors.black87;
     final Color hintColor = isDarkMode ? Colors.grey[300]! : Colors.grey[700]!;
     final Color inputFieldColor = isDarkMode ? Colors.grey[800]! : Colors.white;
@@ -96,7 +87,6 @@ class _LoginPageState extends State<LoginPage> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // Logo & Title
               Container(
@@ -119,15 +109,12 @@ class _LoginPageState extends State<LoginPage> {
               ),
               Text(
                 "Secure cloud storage for everyone",
-                style: TextStyle(
-                  fontSize: 14,
-                  color: hintColor,
-                ),
+                style: TextStyle(fontSize: 14, color: hintColor),
               ),
               const SizedBox(height: 32),
 
               // Email Input
-              _buildTextField(
+              _buildInputField(
                 controller: _emailController,
                 hintText: "Enter your email",
                 icon: Icons.mail_outline,
@@ -138,17 +125,28 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 16),
 
               // Password Input
-              _buildPasswordField(
+              _buildInputField(
                 controller: _passwordController,
                 hintText: "Enter your password",
-                obscureText: _obscurePassword,
-                onToggle: () =>
-                    setState(() => _obscurePassword = !_obscurePassword),
+                icon: Icons.lock_outline,
                 isDarkMode: isDarkMode,
                 inputFieldColor: inputFieldColor,
                 textColor: textColor,
+                obscureText: _obscurePassword,
+                onToggle: () => setState(() => _obscurePassword = !_obscurePassword),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
+
+              // Success/Error Message
+              if (_message != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Text(
+                    _message!,
+                    style: TextStyle(color: _messageColor, fontSize: 14),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
 
               // Sign In Button
               SizedBox(
@@ -158,16 +156,14 @@ class _LoginPageState extends State<LoginPage> {
                   onPressed: signIn,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     elevation: 5,
                     shadowColor: Colors.blue.withOpacity(0.3),
                   ),
-                  child: const Text("Sign In",
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white)),
+                  child: const Text(
+                    "Sign In",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -197,17 +193,10 @@ class _LoginPageState extends State<LoginPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    "Don't have an account?",
-                    style: TextStyle(color: hintColor),
-                  ),
+                  Text("Don't have an account?", style: TextStyle(color: hintColor)),
                   TextButton(
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/register_page');
-                    },
-                    child: const Text("Sign Up",
-                        style: TextStyle(
-                            color: Colors.blue, fontWeight: FontWeight.w600)),
+                    onPressed: () => Navigator.pushNamed(context, '/register_page'),
+                    child: const Text("Sign Up", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w600)),
                   ),
                 ],
               ),
@@ -218,68 +207,35 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildTextField({
+  Widget _buildInputField({
     required TextEditingController controller,
     required String hintText,
     required IconData icon,
     required bool isDarkMode,
     required Color inputFieldColor,
     required Color textColor,
-  }) {
-    return TextField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: hintText,
-        labelStyle:
-        TextStyle(color: isDarkMode ? Colors.white70 : Colors.black54),
-        hintText: hintText,
-        hintStyle:
-        TextStyle(color: isDarkMode ? Colors.white54 : Colors.black45),
-        prefixIcon: Icon(icon, color: textColor),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        filled: true,
-        fillColor: inputFieldColor,
-        focusedBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: Colors.blue, width: 2),
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
-      keyboardType: TextInputType.emailAddress,
-      style: TextStyle(color: textColor),
-    );
-  }
-
-  Widget _buildPasswordField({
-    required TextEditingController controller,
-    required String hintText,
-    required bool obscureText,
-    required VoidCallback onToggle,
-    required bool isDarkMode,
-    required Color inputFieldColor,
-    required Color textColor,
+    bool obscureText = false,
+    VoidCallback? onToggle,
   }) {
     return TextField(
       controller: controller,
       obscureText: obscureText,
+      cursorColor: Colors.blue, // Blue cursor color
       decoration: InputDecoration(
         labelText: hintText,
-        labelStyle:
-        TextStyle(color: isDarkMode ? Colors.white70 : Colors.black54),
-        hintText: hintText,
-        hintStyle:
-        TextStyle(color: isDarkMode ? Colors.white54 : Colors.black45),
-        prefixIcon: Icon(Icons.lock_outline, color: textColor),
-        suffixIcon: IconButton(
-          icon: Icon(
-              obscureText ? Icons.visibility_off : Icons.visibility,
-              color: textColor),
+        labelStyle: TextStyle(color: isDarkMode ? Colors.white70 : Colors.black54),
+        prefixIcon: Icon(icon, color: textColor),
+        suffixIcon: onToggle != null
+            ? IconButton(
+          icon: Icon(obscureText ? Icons.visibility_off : Icons.visibility, color: textColor),
           onPressed: onToggle,
-        ),
+        )
+            : null,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
         filled: true,
         fillColor: inputFieldColor,
         focusedBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: Colors.blue, width: 2),
+          borderSide: const BorderSide(color: Colors.blue, width: 2),
           borderRadius: BorderRadius.circular(10),
         ),
       ),

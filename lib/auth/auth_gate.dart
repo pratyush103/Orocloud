@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../auth/auth_service.dart';
 import '../pages/login_page.dart';
 import '../pages/profile_page.dart';
-import '../auth/auth_service.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -40,12 +41,7 @@ class _AuthGateState extends State<AuthGate> {
 
         // Check if session is valid
         final session = Supabase.instance.client.auth.currentSession;
-
-        if (session == null) {
-          return const LoginPage();
-        } else {
-          return const ProfilePage();
-        }
+        return session == null ? const LoginPage() : const ProfilePage();
       },
     );
   }

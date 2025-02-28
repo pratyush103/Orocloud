@@ -22,6 +22,14 @@ class AuthService {
     await _supabase.auth.signUp(email: email, password: password);
   }
 
+  Future<void> resetPassword(String email) async {
+    try {
+      await _supabase.auth.resetPasswordForEmail(email);
+    } catch (e) {
+      throw Exception("Failed to send reset email: $e");
+    }
+  }
+
   // Google Sign-In using Supabase OAuth
   Future<void> signInWithGoogle() async {
     await _supabase.auth.signInWithOAuth(

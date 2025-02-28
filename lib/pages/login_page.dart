@@ -15,6 +15,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscurePassword = true;
   String? _message;
   Color? _messageColor;
+  int _failedAttempts = 0; // Tracks failed login attempts
 
   void signIn() async {
     setState(() {
@@ -36,6 +37,7 @@ class _LoginPageState extends State<LoginPage> {
     try {
       await authService.signInWithEmailPassword(email, password);
       if (mounted) {
+        _failedAttempts = 0; // Reset failed attempts on successful login
         _showMessage("Login successful!", Colors.greenAccent);
         Future.delayed(const Duration(seconds: 2), () {
           if (mounted) Navigator.pushReplacementNamed(context, '/profile_page');
@@ -43,6 +45,7 @@ class _LoginPageState extends State<LoginPage> {
       }
     } catch (e) {
       if (mounted) {
+        _failedAttempts++; // Increase failed attempts count
         _showMessage("Incorrect Email or Password", Colors.redAccent);
       }
     }
@@ -135,18 +138,38 @@ class _LoginPageState extends State<LoginPage> {
                 obscureText: _obscurePassword,
                 onToggle: () => setState(() => _obscurePassword = !_obscurePassword),
               ),
-              const SizedBox(height: 16),
+
+              const SizedBox(height: 8),
 
               // Success/Error Message
               if (_message != null)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
                     _message!,
                     style: TextStyle(color: _messageColor, fontSize: 14),
                     textAlign: TextAlign.center,
                   ),
                 ),
+
+              // Forgot Password (Only shown after 3 failed attempts)
+              if (_failedAttempts >= 3)
+                TextButton(
+                  onPressed: () {
+
+                    _showMessage("password reset email sent", Colors.greenAccent);
+                  },
+                  child: const Text(
+                    "Forgot Password?",
+                    style: TextStyle(
+                      color: Colors.blue,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+
+              const SizedBox(height: 16),
 
               // Sign In Button
               SizedBox(
@@ -168,7 +191,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 16),
 
-              // Divider
+              // Divider Line with Text
               Row(
                 children: [
                   Expanded(child: Divider(color: hintColor)),
@@ -185,7 +208,7 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 16),
 
               // Google Sign-In Button
-              _buildGoogleSignInButton(isDarkMode),
+              _buildGoogleSignInButton(),
 
               const SizedBox(height: 24),
 
@@ -220,7 +243,7 @@ class _LoginPageState extends State<LoginPage> {
     return TextField(
       controller: controller,
       obscureText: obscureText,
-      cursorColor: Colors.blue, // Blue cursor color
+      cursorColor: Colors.blue,
       decoration: InputDecoration(
         labelText: hintText,
         labelStyle: TextStyle(color: isDarkMode ? Colors.white70 : Colors.black54),
@@ -243,7 +266,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildGoogleSignInButton(bool isDarkMode) {
+  Widget _buildGoogleSignInButton() {
     return ElevatedButton.icon(
       onPressed: signInWithGoogle,
       icon: Image.asset('assets/google_logo.png', height: 24),

@@ -44,6 +44,8 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
 
+    setState(() => _isLoading = true);
+
     try {
       await authService.signUpWithEmailPassword(email, password);
       if (mounted) {

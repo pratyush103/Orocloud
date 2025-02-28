@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../auth/auth_service.dart';
+import 'ForgotPasswordPage.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -34,6 +35,8 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
+    setState(() => _isLoading = true);
+
     try {
       await authService.signInWithEmailPassword(email, password);
       if (mounted) {
@@ -51,7 +54,9 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  void signInWithGoogle() async {
+  Future<void> signInWithGoogle() async {
+    setState(() => _isLoading = true);
+
     try {
       await authService.signInWithGoogle();
       if (mounted) {
@@ -225,7 +230,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ],
           ),
-        ),
+        ],
       ),
     );
   }

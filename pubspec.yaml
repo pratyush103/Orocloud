@@ -23,6 +23,10 @@ dependencies:
   # Document Scanning
   cunning_document_scanner: ^1.2.3
   flutter_launcher_icons: ^0.14.3
+  file_picker: ^9.0.1
+  path_provider: ^2.1.5
+  pdf: ^3.11.3
+  open_file: ^3.5.10
 
 dev_dependencies:
   flutter_test:

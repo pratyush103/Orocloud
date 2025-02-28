@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:orocloud/pages/profile_page.dart';
 
 import '../auth/auth_service.dart';
+import 'ForgotPasswordPage.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -184,7 +185,12 @@ class _LoginPageState extends State<LoginPage> {
                       alignment: Alignment.centerRight,
                       child: TextButton(
                         onPressed: () {
-                          // Navigate to forgot password page
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ForgotPasswordPage(),
+                            ),
+                          );
                         },
                         child: Text(
                           "Forgot Password?",

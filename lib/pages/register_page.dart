@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../auth/auth_service.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -15,6 +16,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final _confirmPasswordController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false; // Added missing variable
   String? _message;
   Color? _messageColor;
 
@@ -56,13 +58,18 @@ class _RegisterPageState extends State<RegisterPage> {
       }
     } catch (e) {
       if (mounted) {
-        _showMessage("An account with this email already exists.", Colors.redAccent);
+        _showMessage(
+          "An account with this email already exists.",
+          Colors.redAccent,
+        );
       }
     }
   }
 
   bool _isValidEmail(String email) {
-    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    final emailRegex = RegExp(
+      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+    );
     return emailRegex.hasMatch(email);
   }
 
@@ -75,8 +82,10 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isDarkMode = MediaQuery.of(context).platformBrightness == Brightness.dark;
-    final Color backgroundColor = isDarkMode ? const Color(0xFF2E2E2E) : Colors.grey[50]!;
+    final bool isDarkMode =
+        MediaQuery.of(context).platformBrightness == Brightness.dark;
+    final Color backgroundColor =
+    isDarkMode ? const Color(0xFF2E2E2E) : Colors.grey[50]!;
     final Color textColor = isDarkMode ? Colors.white : Colors.black87;
     final Color hintColor = isDarkMode ? Colors.grey[300]! : Colors.grey[700]!;
     final Color inputFieldColor = isDarkMode ? Colors.grey[800]! : Colors.white;
@@ -101,7 +110,11 @@ class _RegisterPageState extends State<RegisterPage> {
               const SizedBox(height: 16),
               Text(
                 "Orocloud",
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: textColor),
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
               ),
               Text(
                 "Secure cloud storage for everyone",
@@ -129,7 +142,8 @@ class _RegisterPageState extends State<RegisterPage> {
                 inputFieldColor: inputFieldColor,
                 textColor: textColor,
                 obscureText: _obscurePassword,
-                onToggle: () => setState(() => _obscurePassword = !_obscurePassword),
+                onToggle:
+                    () => setState(() => _obscurePassword = !_obscurePassword),
               ),
               const SizedBox(height: 16),
 
@@ -142,7 +156,10 @@ class _RegisterPageState extends State<RegisterPage> {
                 inputFieldColor: inputFieldColor,
                 textColor: textColor,
                 obscureText: _obscureConfirmPassword,
-                onToggle: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                onToggle:
+                    () => setState(
+                      () => _obscureConfirmPassword = !_obscureConfirmPassword,
+                ),
               ),
               const SizedBox(height: 16),
 
@@ -165,13 +182,19 @@ class _RegisterPageState extends State<RegisterPage> {
                   onPressed: signUp,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                     elevation: 5,
                     shadowColor: Colors.blue.withOpacity(0.3),
                   ),
                   child: const Text(
                     "Sign Up",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -181,10 +204,19 @@ class _RegisterPageState extends State<RegisterPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text("Already have an account?", style: TextStyle(color: hintColor)),
+                  Text(
+                    "Already have an account?",
+                    style: TextStyle(color: hintColor),
+                  ),
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text("Sign In", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w600)),
+                    child: const Text(
+                      "Sign In",
+                      style: TextStyle(
+                        color: Colors.blue,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -206,28 +238,34 @@ class _RegisterPageState extends State<RegisterPage> {
     VoidCallback? onToggle,
   }) {
     return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      cursorColor: Colors.blue, // Ensures blue cursor color
-      decoration: InputDecoration(
-        labelText: hintText,
-        labelStyle: TextStyle(color: isDarkMode ? Colors.white70 : Colors.black54),
-        prefixIcon: Icon(icon, color: textColor),
-        suffixIcon: onToggle != null
-            ? IconButton(
-          icon: Icon(obscureText ? Icons.visibility_off : Icons.visibility, color: textColor),
-          onPressed: onToggle,
-        )
-            : null,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        filled: true,
-        fillColor: inputFieldColor,
-        focusedBorder: OutlineInputBorder(
-          borderSide: const BorderSide(color: Colors.blue, width: 2),
-          borderRadius: BorderRadius.circular(10),
+        controller: controller,
+        obscureText: obscureText,
+        cursorColor: Colors.blue, // Ensures blue cursor color
+        decoration: InputDecoration(
+          labelText: hintText,
+          labelStyle: TextStyle(
+            color: isDarkMode ? Colors.white70 : Colors.black54,
+          ),
+          prefixIcon: Icon(icon, color: textColor),
+          suffixIcon:
+          onToggle != null
+              ? IconButton(
+            icon: Icon(
+              obscureText ? Icons.visibility_off : Icons.visibility,
+              color: textColor,
+            ),
+            onPressed: onToggle,
+          )
+              : null,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          filled: true,
+          fillColor: inputFieldColor,
+          focusedBorder: OutlineInputBorder(
+            borderSide: const BorderSide(color: Colors.blue, width: 2),
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
-      ),
-      style: TextStyle(color: textColor),
-    );
-  }
+        style: TextStyle(color: textColor),
+        );
+    }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../auth/auth_service.dart';
-import 'ForgotPasswordPage.dart';
+import 'forgotpasswordpage.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -14,6 +15,7 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false; // Added missing variable
   String? _message;
   Color? _messageColor;
   int _failedAttempts = 0; // Tracks failed login attempts
@@ -70,7 +72,9 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   bool _isValidEmail(String email) {
-    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    final emailRegex = RegExp(
+      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+    );
     return emailRegex.hasMatch(email);
   }
 
@@ -83,8 +87,10 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isDarkMode = MediaQuery.of(context).platformBrightness == Brightness.dark;
-    final Color backgroundColor = isDarkMode ? const Color(0xFF2E2E2E) : Colors.grey[50]!;
+    final bool isDarkMode =
+        MediaQuery.of(context).platformBrightness == Brightness.dark;
+    final Color backgroundColor =
+    isDarkMode ? const Color(0xFF2E2E2E) : Colors.grey[50]!;
     final Color textColor = isDarkMode ? Colors.white : Colors.black87;
     final Color hintColor = isDarkMode ? Colors.grey[300]! : Colors.grey[700]!;
     final Color inputFieldColor = isDarkMode ? Colors.grey[800]! : Colors.white;
@@ -141,7 +147,8 @@ class _LoginPageState extends State<LoginPage> {
                 inputFieldColor: inputFieldColor,
                 textColor: textColor,
                 obscureText: _obscurePassword,
-                onToggle: () => setState(() => _obscurePassword = !_obscurePassword),
+                onToggle:
+                    () => setState(() => _obscurePassword = !_obscurePassword),
               ),
 
               const SizedBox(height: 8),
@@ -161,8 +168,13 @@ class _LoginPageState extends State<LoginPage> {
               if (_failedAttempts >= 3)
                 TextButton(
                   onPressed: () {
+                    _showMessage("Password reset email sent", Colors.greenAccent);
+                    try {
+                      authService.resetPassword(_emailController.text.trim());
 
-                    _showMessage("password reset email sent", Colors.greenAccent);
+                    } catch (e) {
+                      _showMessage("Failed to send password reset email", Colors.redAccent);
+                    }
                   },
                   child: const Text(
                     "Forgot Password?",
@@ -184,13 +196,19 @@ class _LoginPageState extends State<LoginPage> {
                   onPressed: signIn,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                     elevation: 5,
                     shadowColor: Colors.blue.withOpacity(0.3),
                   ),
                   child: const Text(
                     "Sign In",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -221,16 +239,26 @@ class _LoginPageState extends State<LoginPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text("Don't have an account?", style: TextStyle(color: hintColor)),
+                  Text(
+                    "Don't have an account?",
+                    style: TextStyle(color: hintColor),
+                  ),
                   TextButton(
-                    onPressed: () => Navigator.pushNamed(context, '/register_page'),
-                    child: const Text("Sign Up", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w600)),
+                    onPressed:
+                        () => Navigator.pushNamed(context, '/register_page'),
+                    child: const Text(
+                      "Sign Up",
+                      style: TextStyle(
+                        color: Colors.blue,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -251,11 +279,17 @@ class _LoginPageState extends State<LoginPage> {
       cursorColor: Colors.blue,
       decoration: InputDecoration(
         labelText: hintText,
-        labelStyle: TextStyle(color: isDarkMode ? Colors.white70 : Colors.black54),
+        labelStyle: TextStyle(
+          color: isDarkMode ? Colors.white70 : Colors.black54,
+        ),
         prefixIcon: Icon(icon, color: textColor),
-        suffixIcon: onToggle != null
+        suffixIcon:
+        onToggle != null
             ? IconButton(
-          icon: Icon(obscureText ? Icons.visibility_off : Icons.visibility, color: textColor),
+          icon: Icon(
+            obscureText ? Icons.visibility_off : Icons.visibility,
+            color: textColor,
+          ),
           onPressed: onToggle,
         )
             : null,
@@ -273,14 +307,14 @@ class _LoginPageState extends State<LoginPage> {
 
   Widget _buildGoogleSignInButton() {
     return ElevatedButton.icon(
-      onPressed: signInWithGoogle,
-      icon: Image.asset('assets/google_logo.png', height: 24),
-      label: const Text("Continue with Google", style: TextStyle(fontSize: 16)),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        minimumSize: const Size(double.infinity, 50),
-      ),
-    );
-  }
+        onPressed: signInWithGoogle,
+        icon: Image.asset('assets/google_logo.png', height: 24),
+        label: const Text("Continue with Google", style: TextStyle(fontSize: 16)),
+        style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+            minimumSize: const Size(double.infinity, 50),
+            ),
+        );
+    }
 }

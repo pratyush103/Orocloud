@@ -3,6 +3,7 @@ import 'package:orocloud/pages/document_scanner_page.dart';
 import 'package:orocloud/pages/login_page.dart';
 import 'package:orocloud/pages/profile_page.dart';
 import 'package:orocloud/pages/register_page.dart';
+import 'package:orocloud/pages/upload_screen.dart'; // Make sure this path is correct
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() async {
@@ -26,9 +27,12 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       home: AuthGate(), // Use the stateful AuthGate
       routes: {
+        '/login':
+            (context) => const LoginPage(), // Add login route for navigation
         '/register_page': (context) => const RegisterPage(),
         '/profile_page': (context) => const ProfilePage(),
         '/document_scanner_page': (context) => const DocumentScannerPage(),
+        '/upload': (context) => const UploadScreen(),
       },
     );
   }
@@ -36,10 +40,14 @@ class MyApp extends StatelessWidget {
 
 // Authentication Check
 class AuthGate extends StatelessWidget {
+  const AuthGate({Key? key}) : super(key: key); // Add const constructor
+
   @override
   Widget build(BuildContext context) {
     final user = Supabase.instance.client.auth.currentUser;
 
-    return user == null ? LoginPage() : DocumentScannerPage();
+    return user == null
+        ? const LoginPage()
+        : const DocumentScannerPage(); // Add const
   }
 }

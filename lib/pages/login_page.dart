@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../auth/auth_service.dart';
-import 'forgotpasswordpage.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -45,7 +44,7 @@ class _LoginPageState extends State<LoginPage> {
         _failedAttempts = 0; // Reset failed attempts on successful login
         _showMessage("Login successful!", Colors.greenAccent);
         Future.delayed(const Duration(seconds: 2), () {
-          if (mounted) Navigator.pushReplacementNamed(context, '/profile_page');
+          if (mounted) Navigator.pushReplacementNamed(context, '/upload');
         });
       }
     } catch (e) {
@@ -90,7 +89,7 @@ class _LoginPageState extends State<LoginPage> {
     final bool isDarkMode =
         MediaQuery.of(context).platformBrightness == Brightness.dark;
     final Color backgroundColor =
-    isDarkMode ? const Color(0xFF2E2E2E) : Colors.grey[50]!;
+        isDarkMode ? const Color(0xFF2E2E2E) : Colors.grey[50]!;
     final Color textColor = isDarkMode ? Colors.white : Colors.black87;
     final Color hintColor = isDarkMode ? Colors.grey[300]! : Colors.grey[700]!;
     final Color inputFieldColor = isDarkMode ? Colors.grey[800]! : Colors.white;
@@ -168,12 +167,17 @@ class _LoginPageState extends State<LoginPage> {
               if (_failedAttempts >= 3)
                 TextButton(
                   onPressed: () {
-                    _showMessage("Password reset email sent", Colors.greenAccent);
+                    _showMessage(
+                      "Password reset email sent",
+                      Colors.greenAccent,
+                    );
                     try {
                       authService.resetPassword(_emailController.text.trim());
-
                     } catch (e) {
-                      _showMessage("Failed to send password reset email", Colors.redAccent);
+                      _showMessage(
+                        "Failed to send password reset email",
+                        Colors.redAccent,
+                      );
                     }
                   },
                   child: const Text(
@@ -284,15 +288,15 @@ class _LoginPageState extends State<LoginPage> {
         ),
         prefixIcon: Icon(icon, color: textColor),
         suffixIcon:
-        onToggle != null
-            ? IconButton(
-          icon: Icon(
-            obscureText ? Icons.visibility_off : Icons.visibility,
-            color: textColor,
-          ),
-          onPressed: onToggle,
-        )
-            : null,
+            onToggle != null
+                ? IconButton(
+                  icon: Icon(
+                    obscureText ? Icons.visibility_off : Icons.visibility,
+                    color: textColor,
+                  ),
+                  onPressed: onToggle,
+                )
+                : null,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
         filled: true,
         fillColor: inputFieldColor,
@@ -307,14 +311,14 @@ class _LoginPageState extends State<LoginPage> {
 
   Widget _buildGoogleSignInButton() {
     return ElevatedButton.icon(
-        onPressed: signInWithGoogle,
-        icon: Image.asset('assets/google_logo.png', height: 24),
-        label: const Text("Continue with Google", style: TextStyle(fontSize: 16)),
-        style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black,
-            minimumSize: const Size(double.infinity, 50),
-            ),
-        );
-    }
+      onPressed: signInWithGoogle,
+      icon: Image.asset('assets/google_logo.png', height: 24),
+      label: const Text("Continue with Google", style: TextStyle(fontSize: 16)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        minimumSize: const Size(double.infinity, 50),
+      ),
+    );
+  }
 }

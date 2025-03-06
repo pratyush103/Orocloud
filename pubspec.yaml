@@ -13,7 +13,7 @@ dependencies:
 
   # UI & Icons
   cupertino_icons: ^1.0.8
-  flutter_svg: ^2.0.9  # For SVG icons (e.g., Google logo)
+  flutter_svg: ^2.0.9  # For SVG icons
   google_fonts: ^6.2.1  # Optional: If you want custom fonts
 
   # Authentication & Storage
@@ -27,6 +27,9 @@ dependencies:
   path_provider: ^2.1.5
   pdf: ^3.11.3
   open_file: ^3.5.10
+  flutter_pdfview: ^1.4.0
+  dio: ^5.8.0+1
+  share_plus: ^10.1.4
 
 dev_dependencies:
   flutter_test:

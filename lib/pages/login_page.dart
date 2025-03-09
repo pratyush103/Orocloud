@@ -44,7 +44,7 @@ class _LoginPageState extends State<LoginPage> {
         _failedAttempts = 0; // Reset failed attempts on successful login
         _showMessage("Login successful!", Colors.greenAccent);
         Future.delayed(const Duration(seconds: 2), () {
-          if (mounted) Navigator.pushReplacementNamed(context, '/upload');
+          if (mounted) Navigator.pushReplacementNamed(context, '/drive');
         });
       }
     } catch (e) {

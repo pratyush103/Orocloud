@@ -49,6 +49,6 @@ class AuthGate extends StatelessWidget {
 
     return user == null
         ? const LoginPage()
-        : const DocumentScannerPage(); // Add const
+        : const DrivePage(); // Add const
   }
 }

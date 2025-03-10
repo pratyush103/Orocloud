@@ -114,29 +114,38 @@ class _DrivePageState extends State<DrivePage> {
   final List<DriveFile> files = [];
 
   Future<void> _fetchUploadedFiles() async {
-    setState(() => _isLoading = true);
+    setState(() => _isLoading = true); // Show loading indicator
 
-    List<dynamic> response = await Supabase.instance.client
-        .from('files')
-        .select();
+    try {
+      final response = await Supabase.instance.client
+          .from('files')
+          .select()
+          .order('modified_at', ascending: false); // Sort by latest modified
 
-    List<DriveFile> fetchedFiles = response.map((file) {
-      return DriveFile(
-        icon: FileUploadService.getFileIcon(file['file_type'] ?? ''),
-        iconColor: FileUploadService.getFileIconColor(file['file_type'] ?? ''),
-        title: file['name'],
-        date: "Modified ${file['modified_at'].split('T')[0]}", // Format date
-        previewUrl: file['shared_link'],
-      );
-    }).toList();
+      List<DriveFile> fetchedFiles = response.map<DriveFile>((file) {
+        return DriveFile(
+          icon: FileUploadService.getFileIcon(file['file_type'] ?? ''),
+          iconColor: FileUploadService.getFileIconColor(file['file_type'] ?? ''),
+          title: file['name'],
+          date: "Modified ${file['modified_at'].split('T')[0]}", // Format date
+          previewUrl: file['shared_link'],
+        );
+      }).toList();
 
-    setState(() {
-      files.clear();
-      files.addAll(fetchedFiles);
-      _isLoading = false;
-      // if (files.isNotEmpty) _selectedFile = files[0]; // Select first file
-    });
+      setState(() {
+        files.clear();
+        files.addAll(fetchedFiles);
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      showMessage("Error loading files: ${e.toString()}", Colors.redAccent);
+    }
   }
+
+
 
   final TextEditingController _searchController = TextEditingController();
   bool _showUploadMenu = false;
@@ -155,42 +164,22 @@ class _DrivePageState extends State<DrivePage> {
   }
 
   void _handleFileUpload() async {
-    DriveFile? newFile = await FileUploadService.pickAndUploadFile(context);
 
-    if (newFile != null) {
-      // ✅ Check if the file exists in Supabase
-      final response = await Supabase.instance.client
-          .from('files')
-          .select()
-          .eq('name', newFile.title)
-          .maybeSingle();
 
-      if (response != null) {
-        // File with the same name exists in Supabase
-        _showMessage("File already exists!", Colors.redAccent);
-      } else {
-        // ✅ Use `_getContentType()` from `FileUploadService`
-        final fileType = FileUploadService.getContentType(newFile.title.split('.').last);
 
-        // ✅ Proceed with file upload
-        await Supabase.instance.client.from('files').insert({
-          'user_id': Supabase.instance.client.auth.currentUser?.id,
-          'name': newFile.title,
-          'size': response?['size'] ?? 0,  // Get size if available
-          'file_type': fileType, // Using `_getContentType()`
-          'bucket_path': response?['bucket_path'] ?? '',
-          'created_at': DateTime.now().toIso8601String(),
-          'modified_at': DateTime.now().toIso8601String(),
-          'shared_link': newFile.previewUrl,
-        });
+      try {
+          DriveFile? newFile = await FileUploadService.pickAndUploadFile(context);
+          showMessage("File uploaded successfully", Colors.green);
 
-        setState(() {
-          files.add(newFile);
-        });
-        _showMessage("File uploaded successfully", Colors.green);
+
+        // ✅ Always refresh file list after upload
+        await _fetchUploadedFiles();
+      } catch (e) {
+        showMessage("${e.toString()}", Colors.redAccent);
       }
-    }
+
   }
+
 
   void _toggleUploadMenu() {
     setState(() {
@@ -216,7 +205,7 @@ class _DrivePageState extends State<DrivePage> {
     });
   }
 
-  void _showMessage(String message, Color color) {
+  void showMessage(String message, Color color) {
     setState(() {
       _message = message;
       _messageColor = color;
@@ -254,13 +243,13 @@ class _DrivePageState extends State<DrivePage> {
       Navigator.pushReplacementNamed(context, '/');
 
       // Show success message
-      _showMessage("Logged out successfully", Colors.green);
+      showMessage("Logged out successfully", Colors.green);
     } catch (e) {
       // Close the loading dialog
       Navigator.pop(context);
 
       // Show error message
-      _showMessage("Failed to logout: ${e.toString()}", Colors.redAccent);
+      showMessage("Failed to logout: ${e.toString()}", Colors.redAccent);
     }
   }
 
@@ -475,7 +464,7 @@ class _DrivePageState extends State<DrivePage> {
                     child: _isLoading
                         ? const Center(child: CircularProgressIndicator(color: Colors.blue))
                         : files.isEmpty
-                        ? const Center(child: Text("No files uploaded yet"))
+                        ? const Center(child: Text(""))
                         : ListView.builder(
                       physics: const BouncingScrollPhysics(),
                       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),

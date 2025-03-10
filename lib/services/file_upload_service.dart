@@ -13,7 +13,7 @@ class FileUploadService {
 
   static const int maxFileSizeBytes = 10 * 1024 * 1024; // 10MB
 
-  /// Picks and uploads a file, then returns a `DriveFile` object.
+  /// Picks and uploads a file, throwing an error if it already exists.
   static Future<DriveFile?> pickAndUploadFile(BuildContext context) async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
@@ -27,16 +27,26 @@ class FileUploadService {
       final file = result.files.first;
 
       if (file.size > maxFileSizeBytes) {
-        _showError(context, 'File size exceeds 10MB limit');
-        return null;
+        throw Exception('File size exceeds 10MB limit');
       }
 
       final String? userId = supabase.auth.currentUser?.id;
       if (userId == null) {
-        _showError(context, 'User not logged in');
-        return null;
+        throw Exception('User not logged in');
       }
 
+      // Check if file already exists in the database
+      final existingFiles = await supabase
+          .from('files')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('name', file.name);
+
+      if (existingFiles.isNotEmpty) {
+        throw Exception('File "${file.name}" is already uploaded.');
+      }
+
+      // Generate a unique file name to avoid overwrites
       final String fileName = "${DateTime.now().millisecondsSinceEpoch}_${file.name}";
       final String filePath = "uploads/$userId/$fileName";
 
@@ -62,8 +72,6 @@ class FileUploadService {
         'shared_link': publicUrl,
       });
 
-      _showSuccess(context, 'File uploaded successfully!');
-
       return DriveFile(
         icon: getFileIcon(file.extension ?? ''),
         iconColor: getFileIconColor(file.extension ?? ''),
@@ -72,13 +80,12 @@ class FileUploadService {
         previewUrl: publicUrl,
       );
     } catch (e) {
-      _showError(context, 'Upload failed: ${e.toString()}');
-      return null;
+      throw Exception('Upload failed: $e');
     }
   }
 
   /// Returns appropriate MIME type for file upload
-  static String getContentType(String extension) {  // ✅ Made public
+  static String getContentType(String extension) {
     switch (extension.toLowerCase()) {
       case 'jpg': case 'jpeg': case 'png': case 'gif': case 'bmp': return 'image/$extension';
       case 'mp4': case 'avi': case 'mov': case 'mkv': return 'video/$extension';
@@ -120,19 +127,5 @@ class FileUploadService {
       case 'zip': case 'rar': return Colors.brown;
       default: return Colors.grey;
     }
-  }
-
-  /// Shows success message as a snackbar
-  static void _showSuccess(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.green),
-    );
-  }
-
-  /// Shows error message as a snackbar
-  static void _showError(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
   }
 }

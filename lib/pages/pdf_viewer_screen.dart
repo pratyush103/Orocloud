@@ -12,7 +12,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class PDFViewerScreen extends StatefulWidget {
   final String pdfUrl;
 
-  const PDFViewerScreen({Key? key, required this.pdfUrl}) : super(key: key);
+  const PDFViewerScreen({super.key, required this.pdfUrl});
 
   @override
   _PDFViewerScreenState createState() => _PDFViewerScreenState();

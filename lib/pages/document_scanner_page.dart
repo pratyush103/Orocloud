@@ -10,7 +10,7 @@ import '../auth/auth_service.dart';
 import 'login_page.dart';
 
 class DocumentScannerPage extends StatefulWidget {
-  const DocumentScannerPage({Key? key}) : super(key: key);
+  const DocumentScannerPage({super.key});
 
   @override
   State<DocumentScannerPage> createState() => _DocumentScannerPageState();

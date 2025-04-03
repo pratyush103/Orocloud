@@ -18,7 +18,13 @@ class _AuthGateState extends State<AuthGate> {
   @override
   void initState() {
     super.initState();
-    _restoreSession();
+    _initializeAuth();
+  }
+
+  Future<void> _initializeAuth() async {
+    await _restoreSession();
+    await authService.handleAuthChange();
+    if (mounted) setState(() {});
   }
 
   // Restore session on app startup
@@ -30,16 +36,19 @@ class _AuthGateState extends State<AuthGate> {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<AuthState>(
-      // Listen for auth state changes
       stream: Supabase.instance.client.auth.onAuthStateChange,
       builder: (context, snapshot) {
+        // Call handleAuthChange when auth state updates
+        if (snapshot.hasData) {
+          authService.handleAuthChange();
+        }
+
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        // Check if session is valid
         final session = Supabase.instance.client.auth.currentSession;
         return session == null ? const LoginPage() : const ProfilePage();
       },

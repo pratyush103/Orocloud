@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:orocloud/services/file_upload_service.dart';
-import 'package:orocloud/models/drive_file.dart';  // Import DriveFile model
+import 'package:orocloud/models/drive_file.dart'; // Import DriveFile model
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
@@ -33,16 +33,15 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isDarkMode = MediaQuery.of(context).platformBrightness == Brightness.dark;
-    final Color backgroundColor = isDarkMode ? const Color(0xFF2E2E2E) : Colors.grey[50]!;
+    final bool isDarkMode =
+        MediaQuery.of(context).platformBrightness == Brightness.dark;
+    final Color backgroundColor =
+        isDarkMode ? const Color(0xFF2E2E2E) : Colors.grey[50]!;
     final Color textColor = isDarkMode ? Colors.white : Colors.black87;
 
     return Scaffold(
       backgroundColor: backgroundColor,
-      appBar: AppBar(
-        title: const Text('Home'),
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text('Home'), elevation: 0),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -68,7 +67,10 @@ class HomePage extends StatelessWidget {
             ),
             Text(
               "Secure cloud storage for everyone",
-              style: TextStyle(fontSize: 14, color: isDarkMode ? Colors.grey[300]! : Colors.grey[700]!),
+              style: TextStyle(
+                fontSize: 14,
+                color: isDarkMode ? Colors.grey[300]! : Colors.grey[700]!,
+              ),
             ),
             const SizedBox(height: 32),
             SizedBox(
@@ -114,23 +116,94 @@ class _DrivePageState extends State<DrivePage> {
   final List<DriveFile> files = [];
 
   Future<void> _fetchUploadedFiles() async {
-    setState(() => _isLoading = true); // Show loading indicator
+    setState(() => _isLoading = true);
 
     try {
+      // Get current user ID
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User not logged in');
+      }
+
+      // Fetch both directories and files belonging to the user
+      final directories = await Supabase.instance.client
+          .from('directories')
+          .select('id, name, parent_id, created_at')
+          .eq('user_id', userId)
+          .order('name');
+
+      // Create a map for quick directory lookups
+      Map<int, Map<String, dynamic>> directoryMap = {};
+      for (var dir in directories) {
+        directoryMap[dir['id']] = dir;
+      }
+
+      // Fetch files with directory information
       final response = await Supabase.instance.client
           .from('files')
-          .select()
-          .order('modified_at', ascending: false); // Sort by latest modified
+          .select('*, directories(name)')
+          .eq('user_id', userId)
+          .order('modified_at', ascending: false);
 
-      List<DriveFile> fetchedFiles = response.map<DriveFile>((file) {
-        return DriveFile(
-          icon: FileUploadService.getFileIcon(file['file_type'] ?? ''),
-          iconColor: FileUploadService.getFileIconColor(file['file_type'] ?? ''),
-          title: file['name'],
-          date: "Modified ${file['modified_at'].split('T')[0]}", // Format date
-          previewUrl: file['shared_link'],
-        );
-      }).toList();
+      List<DriveFile> fetchedFiles =
+          response.map<DriveFile>((file) {
+            // Get directory name or "Unknown" if not found
+            String directoryName = "Unknown";
+            if (file['directories'] != null) {
+              directoryName = file['directories']['name'];
+            }
+
+            // Format date for display
+            String formattedDate = "Unknown date";
+            if (file['modified_at'] != null) {
+              DateTime modifiedDate = DateTime.parse(file['modified_at']);
+              final now = DateTime.now();
+              final difference = now.difference(modifiedDate);
+
+              if (difference.inDays == 0) {
+                formattedDate = "Today";
+              } else if (difference.inDays == 1) {
+                formattedDate = "Yesterday";
+              } else if (difference.inDays < 7) {
+                formattedDate = "${difference.inDays} days ago";
+              } else {
+                formattedDate =
+                    "${modifiedDate.day}/${modifiedDate.month}/${modifiedDate.year}";
+              }
+            }
+
+            // Calculate file size for display
+            String fileSize = "Unknown";
+            if (file['size'] != null) {
+              final sizeInBytes = int.tryParse(file['size']) ?? 0;
+              if (sizeInBytes < 1024) {
+                fileSize = "$sizeInBytes B";
+              } else if (sizeInBytes < 1024 * 1024) {
+                fileSize = "${(sizeInBytes / 1024).toStringAsFixed(1)} KB";
+              } else if (sizeInBytes < 1024 * 1024 * 1024) {
+                fileSize =
+                    "${(sizeInBytes / (1024 * 1024)).toStringAsFixed(1)} MB";
+              } else {
+                fileSize =
+                    "${(sizeInBytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB";
+              }
+            }
+
+            return DriveFile(
+              id: file['id'],
+              icon: FileUploadService.getFileIcon(file['file_type'] ?? ''),
+              iconColor: FileUploadService.getFileIconColor(
+                file['file_type'] ?? '',
+              ),
+              title: file['name'],
+              date: formattedDate,
+              previewUrl: file['shared_link'],
+              size: fileSize,
+              directoryName: directoryName,
+              directoryId: file['directory_id'],
+              isStarred: file['starred'] ?? false,
+            );
+          }).toList();
 
       setState(() {
         files.clear();
@@ -145,8 +218,6 @@ class _DrivePageState extends State<DrivePage> {
     }
   }
 
-
-
   final TextEditingController _searchController = TextEditingController();
   bool _showUploadMenu = false;
   int _selectedNavIndex = 0;
@@ -160,26 +231,19 @@ class _DrivePageState extends State<DrivePage> {
   void initState() {
     super.initState();
     _fetchUploadedFiles(); // Fetch files from Supabase on load
-
   }
 
   void _handleFileUpload() async {
+    try {
+      DriveFile? newFile = await FileUploadService.pickAndUploadFile(context);
+      showMessage("File uploaded successfully", Colors.green);
 
-
-
-      try {
-          DriveFile? newFile = await FileUploadService.pickAndUploadFile(context);
-          showMessage("File uploaded successfully", Colors.green);
-
-
-        // ✅ Always refresh file list after upload
-        await _fetchUploadedFiles();
-      } catch (e) {
-        showMessage("${e.toString()}", Colors.redAccent);
-      }
-
+      // ✅ Always refresh file list after upload
+      await _fetchUploadedFiles();
+    } catch (e) {
+      showMessage(e.toString(), Colors.redAccent);
+    }
   }
-
 
   void _toggleUploadMenu() {
     setState(() {
@@ -229,7 +293,10 @@ class _DrivePageState extends State<DrivePage> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator(color: Colors.blue)),
+      builder:
+          (context) => const Center(
+            child: CircularProgressIndicator(color: Colors.blue),
+          ),
     );
 
     try {
@@ -253,16 +320,18 @@ class _DrivePageState extends State<DrivePage> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
-    final bool isDarkMode = MediaQuery.of(context).platformBrightness == Brightness.dark;
-    final Color backgroundColor = isDarkMode ? const Color(0xFF2E2E2E) : const Color(0xFFF1F3F4);
+    final bool isDarkMode =
+        MediaQuery.of(context).platformBrightness == Brightness.dark;
+    final Color backgroundColor =
+        isDarkMode ? const Color(0xFF2E2E2E) : const Color(0xFFF1F3F4);
     final Color cardColor = isDarkMode ? Colors.grey[800]! : Colors.white;
     final Color textColor = isDarkMode ? Colors.white : Colors.black87;
     final Color hintColor = isDarkMode ? Colors.grey[300]! : Colors.grey[700]!;
 
-    return GestureDetector( // ✅ Dismiss keyboard when tapping outside
+    return GestureDetector(
+      // ✅ Dismiss keyboard when tapping outside
       onTap: () {
         FocusScope.of(context).unfocus(); // ✅ Remove focus from search bar
       },
@@ -277,7 +346,10 @@ class _DrivePageState extends State<DrivePage> {
                   // Integrated App Bar with search bar and menu button
                   Container(
                     height: 70,
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0,
+                      vertical: 12.0,
+                    ),
                     decoration: BoxDecoration(
                       color: cardColor,
                       boxShadow: [
@@ -316,7 +388,9 @@ class _DrivePageState extends State<DrivePage> {
                           child: Focus(
                             onFocusChange: (hasFocus) {
                               // Force a rebuild when focus changes
-                              setState(() {}); // ✅ Ensure UI updates when focused
+                              setState(
+                                () {},
+                              ); // ✅ Ensure UI updates when focused
                             },
                             child: TextField(
                               controller: _searchController,
@@ -326,23 +400,37 @@ class _DrivePageState extends State<DrivePage> {
                               decoration: InputDecoration(
                                 hintText: "Search in Orocloud",
                                 hintStyle: TextStyle(
-                                  color: isDarkMode ? Colors.white70 : Colors.black54,
+                                  color:
+                                      isDarkMode
+                                          ? Colors.white70
+                                          : Colors.black54,
                                 ),
-                                prefixIcon: Icon(Icons.search, color: hintColor),
+                                prefixIcon: Icon(
+                                  Icons.search,
+                                  color: hintColor,
+                                ),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(30),
                                   borderSide: BorderSide.none,
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(30),
-                                  borderSide: const BorderSide(color: Colors.blue, width: 2),
+                                  borderSide: const BorderSide(
+                                    color: Colors.blue,
+                                    width: 2,
+                                  ),
                                 ),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(30),
-                                  borderSide: BorderSide(color: Colors.grey.withOpacity(0.2), width: 1),
+                                  borderSide: BorderSide(
+                                    color: Colors.grey.withOpacity(0.2),
+                                    width: 1,
+                                  ),
                                 ),
                                 filled: false,
-                                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                               ),
                               style: TextStyle(color: textColor),
                             ),
@@ -355,8 +443,14 @@ class _DrivePageState extends State<DrivePage> {
                   // Message display
                   if (_message != null)
                     Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
                       decoration: BoxDecoration(
                         color: _messageColor!.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(10),
@@ -364,7 +458,9 @@ class _DrivePageState extends State<DrivePage> {
                       child: Row(
                         children: [
                           Icon(
-                            _messageColor == Colors.redAccent ? Icons.error : Icons.check_circle,
+                            _messageColor == Colors.redAccent
+                                ? Icons.error
+                                : Icons.check_circle,
                             color: _messageColor,
                           ),
                           const SizedBox(width: 8),
@@ -380,7 +476,10 @@ class _DrivePageState extends State<DrivePage> {
 
                   // Quick Access
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20.0,
+                      vertical: 8.0,
+                    ),
                     child: Text(
                       "Quick Access",
                       style: TextStyle(
@@ -448,7 +547,10 @@ class _DrivePageState extends State<DrivePage> {
 
                   // Files Section
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20.0,
+                      vertical: 16.0,
+                    ),
                     child: Text(
                       "Files",
                       style: TextStyle(
@@ -461,28 +563,36 @@ class _DrivePageState extends State<DrivePage> {
 
                   // File List - FIXED SCROLLING SECTION
                   Expanded(
-                    child: _isLoading
-                        ? const Center(child: CircularProgressIndicator(color: Colors.blue))
-                        : files.isEmpty
-                        ? const Center(child: Text(""))
-                        : ListView.builder(
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-                      itemCount: files.length,
-                      itemBuilder: (context, index) {
-                        return GestureDetector(
-                          onTap: () => _selectFile(files[index]),
-                          child: _buildFileItem(
-                            file: files[index],
-                            onStarToggle: () => _toggleStar(index),
-                            isSelected: _selectedFile == files[index],
-                            isDarkMode: isDarkMode,
-                            cardColor: cardColor,
-                            textColor: textColor,
-                          ),
-                        );
-                      },
-                    ),
+                    child:
+                        _isLoading
+                            ? const Center(
+                              child: CircularProgressIndicator(
+                                color: Colors.blue,
+                              ),
+                            )
+                            : files.isEmpty
+                            ? const Center(child: Text(""))
+                            : ListView.builder(
+                              physics: const BouncingScrollPhysics(),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16.0,
+                                vertical: 10.0,
+                              ),
+                              itemCount: files.length,
+                              itemBuilder: (context, index) {
+                                return GestureDetector(
+                                  onTap: () => _selectFile(files[index]),
+                                  child: _buildFileItem(
+                                    file: files[index],
+                                    onStarToggle: () => _toggleStar(index),
+                                    isSelected: _selectedFile == files[index],
+                                    isDarkMode: isDarkMode,
+                                    cardColor: cardColor,
+                                    textColor: textColor,
+                                  ),
+                                );
+                              },
+                            ),
                   ),
                 ],
               ),
@@ -526,15 +636,15 @@ class _DrivePageState extends State<DrivePage> {
                         _handleLogout(context);
                       },
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16.0,
+                          vertical: 12.0,
+                        ),
                         child: Row(
                           children: [
                             Icon(Icons.logout, color: hintColor),
                             const SizedBox(width: 12),
-                            Text(
-                              "Logout",
-                              style: TextStyle(color: textColor),
-                            ),
+                            Text("Logout", style: TextStyle(color: textColor)),
                           ],
                         ),
                       ),
@@ -560,13 +670,17 @@ class _DrivePageState extends State<DrivePage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        InkWell( // Add InkWell for tap functionality
+                        InkWell(
+                          // Add InkWell for tap functionality
                           onTap: () {
                             _handleFileUpload();
                             _toggleUploadMenu(); // Close menu after selection
                           },
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                              vertical: 12.0,
+                            ),
                             child: Row(
                               children: [
                                 Icon(Icons.upload_file, color: hintColor),
@@ -579,13 +693,17 @@ class _DrivePageState extends State<DrivePage> {
                             ),
                           ),
                         ),
-                        InkWell( // Add InkWell for tap functionality
+                        InkWell(
+                          // Add InkWell for tap functionality
                           onTap: () {
                             // Handle scan to PDF action
                             _toggleUploadMenu(); // Close menu after selection
                           },
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                              vertical: 12.0,
+                            ),
                             child: Row(
                               children: [
                                 Icon(Icons.photo_camera, color: hintColor),
@@ -608,7 +726,8 @@ class _DrivePageState extends State<DrivePage> {
                 bottom: 70,
                 right: 20,
                 child: FloatingActionButton(
-                  onPressed: _toggleUploadMenu, // Change this to toggle the menu
+                  onPressed:
+                      _toggleUploadMenu, // Change this to toggle the menu
                   backgroundColor: Colors.blue,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
@@ -674,11 +793,11 @@ class _DrivePageState extends State<DrivePage> {
   }
 
   Widget _buildFilePreview(
-      DriveFile file, {
-        required bool isDarkMode,
-        required Color cardColor,
-        required Color textColor,
-      }) {
+    DriveFile file, {
+    required bool isDarkMode,
+    required Color cardColor,
+    required Color textColor,
+  }) {
     // Determine the preview content based on file type
     Widget previewContent;
 
@@ -696,11 +815,7 @@ class _DrivePageState extends State<DrivePage> {
               ),
             ),
             child: Center(
-              child: Icon(
-                Icons.image,
-                size: 64,
-                color: file.iconColor,
-              ),
+              child: Icon(Icons.image, size: 64, color: file.iconColor),
             ),
           ),
         ],
@@ -719,11 +834,7 @@ class _DrivePageState extends State<DrivePage> {
               ),
             ),
             child: Center(
-              child: Icon(
-                Icons.folder_open,
-                size: 64,
-                color: file.iconColor,
-              ),
+              child: Icon(Icons.folder_open, size: 64, color: file.iconColor),
             ),
           ),
         ],
@@ -745,11 +856,7 @@ class _DrivePageState extends State<DrivePage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    file.icon,
-                    size: 48,
-                    color: file.iconColor,
-                  ),
+                  Icon(file.icon, size: 48, color: file.iconColor),
                   const SizedBox(height: 8),
                   Text(
                     file.title,
@@ -857,18 +964,16 @@ class _DrivePageState extends State<DrivePage> {
     );
   }
 
-  Widget _buildPreviewAction(IconData icon, String label, {required Color textColor}) {
+  Widget _buildPreviewAction(
+    IconData icon,
+    String label, {
+    required Color textColor,
+  }) {
     return Column(
       children: [
         Icon(icon, color: textColor, size: 20),
         const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: textColor,
-          ),
-        ),
+        Text(label, style: TextStyle(fontSize: 12, color: textColor)),
       ],
     );
   }
@@ -897,10 +1002,7 @@ class _DrivePageState extends State<DrivePage> {
         children: [
           Icon(icon, color: isDarkMode ? Colors.grey[400] : Colors.grey[700]),
           const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(fontSize: 14, color: textColor),
-          ),
+          Text(label, style: TextStyle(fontSize: 14, color: textColor)),
         ],
       ),
     );
@@ -917,13 +1019,15 @@ class _DrivePageState extends State<DrivePage> {
     return Container(
       margin: const EdgeInsets.only(bottom: 10.0),
       decoration: BoxDecoration(
-        color: isSelected
-            ? Colors.blue.withOpacity(isDarkMode ? 0.2 : 0.05)
-            : cardColor,
+        color:
+            isSelected
+                ? Colors.blue.withOpacity(isDarkMode ? 0.2 : 0.05)
+                : cardColor,
         borderRadius: BorderRadius.circular(10.0),
-        border: isSelected
-            ? Border.all(color: Colors.blue.withOpacity(0.5), width: 1.5)
-            : null,
+        border:
+            isSelected
+                ? Border.all(color: Colors.blue.withOpacity(0.5), width: 1.5)
+                : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -945,18 +1049,51 @@ class _DrivePageState extends State<DrivePage> {
                   Text(
                     file.title,
                     style: TextStyle(
-                      fontSize: 16,
                       fontWeight: FontWeight.w500,
+                      fontSize: 16,
                       color: textColor,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    file.date,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        file.date,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color:
+                              isDarkMode ? Colors.grey[400] : Colors.grey[700],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      if (file.size != null)
+                        Text(
+                          "• ${file.size}",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color:
+                                isDarkMode
+                                    ? Colors.grey[400]
+                                    : Colors.grey[700],
+                          ),
+                        ),
+                      const SizedBox(width: 8),
+                      if (file.directoryName != null)
+                        Text(
+                          "• ${file.directoryName}",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color:
+                                isDarkMode
+                                    ? Colors.grey[400]
+                                    : Colors.grey[700],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
                   ),
                 ],
               ),
@@ -968,10 +1105,17 @@ class _DrivePageState extends State<DrivePage> {
               )
             else
               IconButton(
-                icon: Icon(Icons.star_border, color: isDarkMode ? Colors.grey[400] : Colors.grey, size: 22),
+                icon: Icon(
+                  Icons.star_border,
+                  color: isDarkMode ? Colors.grey[400] : Colors.grey,
+                  size: 22,
+                ),
                 onPressed: onStarToggle,
               ),
-            Icon(Icons.more_vert, color: isDarkMode ? Colors.grey[400] : Colors.grey),
+            Icon(
+              Icons.more_vert,
+              color: isDarkMode ? Colors.grey[400] : Colors.grey,
+            ),
           ],
         ),
       ),
@@ -992,11 +1136,7 @@ class _DrivePageState extends State<DrivePage> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            color: isSelected ? Colors.blue : Colors.grey,
-            size: 24,
-          ),
+          Icon(icon, color: isSelected ? Colors.blue : Colors.grey, size: 24),
           const SizedBox(height: 2),
           Text(
             label,

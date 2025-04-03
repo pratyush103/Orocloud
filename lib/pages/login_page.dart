@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../auth/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({Key? key}) : super(key: key);
+  const LoginPage({super.key});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -60,13 +60,19 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       await authService.signInWithGoogle();
+      // Call handleAuthChange after OAuth sign-in
+      await authService.handleAuthChange();
+
       if (mounted) {
         _showMessage("Google Sign-In Successful!", Colors.greenAccent);
+        Navigator.pushReplacementNamed(context, '/drive');
       }
     } catch (e) {
       if (mounted) {
         _showMessage("Google Sign-In Failed: $e", Colors.redAccent);
       }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

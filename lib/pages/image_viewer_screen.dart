@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 class ImageViewerScreen extends StatelessWidget {
   final String imageUrl;
 
-  const ImageViewerScreen({Key? key, required this.imageUrl}) : super(key: key);
+  const ImageViewerScreen({super.key, required this.imageUrl});
 
   @override
   Widget build(BuildContext context) {

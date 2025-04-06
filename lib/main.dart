@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:orocloud/pages/document_scanner_page.dart';
+import 'package:orocloud/pages/home_screen.dart'; // Make sure this path is correct
 import 'package:orocloud/pages/login_page.dart';
 import 'package:orocloud/pages/profile_page.dart';
 import 'package:orocloud/pages/register_page.dart';
-import 'package:orocloud/pages/home_screen.dart'; // Make sure this path is correct
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() async {
@@ -47,8 +47,6 @@ class AuthGate extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = Supabase.instance.client.auth.currentUser;
 
-    return user == null
-        ? const LoginPage()
-        : const DrivePage(); // Add const
+    return user == null ? const LoginPage() : const DrivePage(); // Add const
   }
 }

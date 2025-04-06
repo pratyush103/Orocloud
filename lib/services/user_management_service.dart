@@ -1,60 +1,51 @@
-// lib/services/user_management_service.dart
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class UserManagementService {
   final SupabaseClient supabase = Supabase.instance.client;
 
-  // Create a user entry in the users table when a new user registers
-  Future<void> createUserRecord(String userId, String email) async {
+  Future<void> createUserRecord(String email) async {
     try {
-      // Make sure your users table is using uuid type for user_id, not bigint
-      await Supabase.instance.client.from('users').insert({
-        'id': userId, // Changed from user_id to id if that's your column name
+      // Get the current authenticated user's UUID
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) throw Exception('No authenticated user');
+
+      // Create user record
+      await supabase.from('users').insert({
+        'id': userId, // Supabase auth UUID
+        'name': email.split('@')[0],
         'email': email,
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-        'username': email.split('@')[0], // Default username from email
-        'storage_used': 0,
-        'storage_limit': 10 * 1024 * 1024 * 1024, // 10GB default
-        'premium': false,
+        'member_type': 'free',
+        'total_space': (10 * 1024 * 1024 * 1024), // 10GB in bytes
+        'used_space': 0,
+        'file_count': 0,
+        'directory_count': 0,
       });
 
-      // Create root directory for user
       await createRootDirectory(userId);
     } catch (e) {
-      print('Error creating user record: $e');
       throw Exception('Failed to create user record: $e');
     }
   }
 
-  // Create root directory for a new user
   Future<void> createRootDirectory(String userId) async {
     try {
       await supabase.from('directories').insert({
         'user_id': userId,
-        'parent_id': null, // Root has no parent
+        'parent_id': null,
         'name': 'My Files',
-        'created_at': DateTime.now().toIso8601String(),
-        'modified_at': DateTime.now().toIso8601String(),
         'author': userId,
         'starred': false,
         'sharing': 'private',
+        'file_count': 0,
+        'total_size': 0,
       });
-
-      // Update directory count
-      await supabase.rpc(
-        'increment_directory_count',
-        params: {'user_id': userId},
-      );
     } catch (e) {
       throw Exception('Failed to create root directory: $e');
     }
   }
 
-  // Update user stats when a file is added
   Future<void> updateUserFileStats(String userId, int fileSize) async {
     try {
-      // Get current stats
       final result =
           await supabase
               .from('users')
@@ -62,34 +53,23 @@ class UserManagementService {
               .eq('id', userId)
               .single();
 
-      // Calculate new values
-      final currentUsedSpace = int.parse(result['used_space'] ?? '0');
-      final newUsedSpace = currentUsedSpace + fileSize;
-      final newFileCount = (result['file_count'] ?? 0) + 1;
+      final int currentUsedSpace = result['used_space'] ?? 0;
+      final int newUsedSpace = currentUsedSpace + fileSize;
+      final int newFileCount = (result['file_count'] ?? 0) + 1;
 
-      // Update user record
       await supabase
           .from('users')
-          .update({
-            'used_space': newUsedSpace.toString(),
-            'file_count': newFileCount,
-            'last_login': DateTime.now().toIso8601String(),
-          })
+          .update({'used_space': newUsedSpace, 'file_count': newFileCount})
           .eq('id', userId);
     } catch (e) {
       throw Exception('Failed to update user stats: $e');
     }
   }
 
-  // Retrieve a user record from the users table
-  Future<Map<String, dynamic>?> getUserRecord(String userId) async {
+  Future<Map<String, dynamic>?> getUserRecord(String email) async {
     try {
-      final result =
-          await supabase.from('users').select().eq('id', userId).single();
-
-      return result;
+      return await supabase.from('users').select().eq('email', email).single();
     } catch (e) {
-      // Return null if the user record does not exist
       return null;
     }
   }

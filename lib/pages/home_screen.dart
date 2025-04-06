@@ -1,6 +1,10 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:orocloud/services/file_upload_service.dart';
 import 'package:orocloud/models/drive_file.dart'; // Import DriveFile model
+import 'package:orocloud/services/file_upload_service.dart'
+    as FileUploadService;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
@@ -191,7 +195,7 @@ class _DrivePageState extends State<DrivePage> {
 
             return DriveFile(
               id: file['id'],
-              icon: FileUploadService.getFileIcon(file['file_type'] ?? ''),
+              icon: Icons.insert_drive_file, // Use a default icon for now
               iconColor: FileUploadService.getFileIconColor(
                 file['file_type'] ?? '',
               ),
@@ -235,11 +239,26 @@ class _DrivePageState extends State<DrivePage> {
 
   void _handleFileUpload() async {
     try {
-      DriveFile? newFile = await FileUploadService.pickAndUploadFile(context);
-      showMessage("File uploaded successfully", Colors.green);
+      Future<File?> _pickFile() async {
+        try {
+          final result = await FilePicker.platform.pickFiles();
+          if (result != null) {
+            return File(result.files.single.path!);
+          }
+          return null;
+        } catch (e) {
+          showMessage("Error picking file: ${e.toString()}", Colors.redAccent);
+          return null;
+        }
+      }
 
-      // ✅ Always refresh file list after upload
-      await _fetchUploadedFiles();
+      if (files != null) {
+        DriveFile? newFile = await FileUploadService.uploadFile(files as File);
+        showMessage("File uploaded successfully", Colors.green);
+
+        // ✅ Always refresh file list after upload
+        await _fetchUploadedFiles();
+      }
     } catch (e) {
       showMessage(e.toString(), Colors.redAccent);
     }

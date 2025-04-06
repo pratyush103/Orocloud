@@ -1,135 +1,54 @@
-// lib/services/file_upload_service.dart (updated)
+import 'dart:io';
+import 'dart:math';
+
 import 'package:file_picker/file_picker.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:mime/mime.dart';
 import 'package:orocloud/models/drive_file.dart';
-import 'package:orocloud/services/user_management_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+// Define the FileUploadService class properly
 class FileUploadService {
-  static const List<String> allowedExtensions = [
-    'jpg',
-    'jpeg',
-    'png',
-    'gif',
-    'bmp',
-    'mp4',
-    'avi',
-    'mov',
-    'mkv',
-    'mp3',
-    'wav',
-    'ogg',
-    'txt',
-    'pdf',
-    'doc',
-    'docx',
-    'xls',
-    'xlsx',
-    'ppt',
-    'pptx',
-    'zip',
-    'rar',
-    'csv',
-    'json',
-  ];
+  static final SupabaseClient _supabase = Supabase.instance.client;
 
-  static const int maxFileSizeBytes = 10 * 1024 * 1024; // 10MB
-
-  static final UserManagementService _userService = UserManagementService();
-
-  /// Picks and uploads a file to the specified directory
-  static Future<DriveFile?> pickAndUploadFile(
-    BuildContext context, {
-    int? directoryId,
-  }) async {
+  static Future<DriveFile?> uploadFile(File file, {String? directoryId}) async {
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: allowedExtensions,
-        withData: true,
-      );
-
-      if (result == null || result.files.isEmpty) return null;
-
-      final file = result.files.first;
-
-      if (file.size > maxFileSizeBytes) {
-        throw Exception('File size exceeds 10MB limit');
-      }
-
-      final String? userId = Supabase.instance.client.auth.currentUser?.id;
+      // Get the user ID
+      final userId = _supabase.auth.currentUser?.id;
       if (userId == null) {
-        throw Exception('User not logged in');
+        throw Exception('User not authenticated');
       }
 
-      // Get user's root directory if no directory specified
-      if (directoryId == null) {
-        try {
-          final rootDirResult = await Supabase.instance.client.rpc(
-            'get_root_directory',
-            params: {'user_id_param': userId},
-          );
+      // Convert directoryId to int if it's a String, or use null
+      int? dirId = directoryId != null ? int.tryParse(directoryId) : null;
 
-          if (rootDirResult.isEmpty) {
-            throw Exception('Root directory not found');
-          }
-
-          directoryId = rootDirResult[0]['id'];
-        } catch (e) {
-          // Fallback using direct query
-          final rootDirResult =
-              await Supabase.instance.client
-                  .from('directories')
-                  .select('id')
-                  .eq('user_id', userId)
-                  .filter('parent_id', 'is', null)
-                  .single();
-          directoryId = rootDirResult['id'];
-        }
-      }
-
-      // Check if file already exists in this directory
-      assert(directoryId != null, 'Directory ID cannot be null');
-      final existingFiles = await Supabase.instance.client
-          .from('files')
-          .select('id')
-          .eq('user_id', userId)
-          .eq('directory_id', directoryId!)
-          .eq('name', file.name);
-
-      if (existingFiles.isNotEmpty) {
-        throw Exception('File "${file.name}" already exists in this folder.');
-      }
-
-      // Generate a unique file name
+      // Upload the file to Supabase Storage
       final String fileName =
-          "${DateTime.now().millisecondsSinceEpoch}_${file.name}";
+          "${DateTime.now().millisecondsSinceEpoch}_${file.path.split('/').last}";
       final String filePath = "uploads/$userId/$fileName";
 
-      // Upload file to Supabase Storage
-      await Supabase.instance.client.storage
+      await _supabase.storage
           .from('user_files')
           .uploadBinary(
             filePath,
-            file.bytes!,
+            await file.readAsBytes(),
             fileOptions: FileOptions(
-              contentType: getContentType(file.extension ?? ''),
+              contentType: getContentType(file.path.split('.').last),
             ),
           );
 
-      // Get Public URL
-      final String publicUrl = Supabase.instance.client.storage
+      final String publicUrl = _supabase.storage
           .from('user_files')
           .getPublicUrl(filePath);
 
-      // Save metadata to database
       final fileInsertResponse =
-          await Supabase.instance.client.from('files').insert({
+          await _supabase.from('files').insert({
             'user_id': userId,
-            'directory_id': directoryId,
-            'name': file.name,
-            'size': file.size.toString(),
-            'file_type': file.extension,
+            'directory_id':
+                dirId, // This is now properly handling the int? type
+            'name': file.path.split('/').last,
+            'size': await file.length(),
+            'file_type': file.path.split('.').last,
             'bucket_path': filePath,
             'created_at': DateTime.now().toIso8601String(),
             'modified_at': DateTime.now().toIso8601String(),
@@ -145,33 +64,35 @@ class FileUploadService {
             },
           }).select();
 
-      // Update directory file count and size
-      await Supabase.instance.client.rpc(
-        'update_directory_files_count',
-        params: {
-          'dir_id': directoryId,
-          'count_change': 1,
-          'size_change': file.size,
-        },
-      );
+      // Update directory files count
+      if (dirId != null) {
+        await _supabase.rpc(
+          'update_directory_files_count',
+          params: {
+            'dir_id': dirId, // This is now properly handled
+            'count_change': 1,
+            'size_change': await file.length(),
+          },
+        );
+      }
 
-      // Update user's file stats
-      await Supabase.instance.client.rpc(
+      // Update user file stats
+      await _supabase.rpc(
         'update_user_file_stats',
         params: {
           'uid': userId,
           'file_count_change': 1,
-          'space_change': file.size,
+          'space_change': await file.length(),
         },
       );
 
       return DriveFile(
         id: fileInsertResponse[0]['id'],
-        icon: getFileIcon(file.extension ?? ''),
-        iconColor: getFileIconColor(file.extension ?? ''),
-        title: file.name,
+        icon: Icons.insert_drive_file,
+        iconColor: getFileIconColor(file.path.split('.').last),
+        title: file.path.split('/').last,
         date: "Modified Today",
-        size: _formatFileSize(file.size),
+        size: formatFileSize(await file.length()),
         previewUrl: publicUrl,
       );
     } catch (e) {
@@ -179,140 +100,27 @@ class FileUploadService {
     }
   }
 
-  /// Deletes a file and updates directory metadata
-  static Future<void> deleteFile(int fileId) async {
-    try {
-      final String? userId = Supabase.instance.client.auth.currentUser?.id;
-      if (userId == null) {
-        throw Exception('User not logged in');
-      }
-
-      // Get file metadata before deletion
-      final fileData =
-          await Supabase.instance.client
-              .from('files')
-              .select('id, directory_id, bucket_path, size')
-              .eq('id', fileId)
-              .eq('user_id', userId) // Security check
-              .single();
-
-      if (fileData == null) {
-        throw Exception('File not found or access denied');
-      }
-
-      // Get file size for stats update
-      final int fileSize = int.tryParse(fileData['size'] ?? '0') ?? 0;
-      final int directoryId = fileData['directory_id'];
-      final String bucketPath = fileData['bucket_path'];
-
-      // 1. Delete file from storage
-      await Supabase.instance.client.storage.from('user_files').remove([
-        bucketPath,
-      ]);
-
-      // 2. Delete file metadata from database
-      await Supabase.instance.client
-          .from('files')
-          .delete()
-          .eq('id', fileId)
-          .eq('user_id', userId); // Security check
-
-      // 3. Update directory metadata
-      await Supabase.instance.client.rpc(
-        'update_directory_files_count',
-        params: {
-          'dir_id': directoryId,
-          'count_change': -1, // Remove one file
-          'size_change': -fileSize, // Remove file size
-        },
-      );
-
-      // 4. Update user's file stats
-      await Supabase.instance.client.rpc(
-        'update_user_file_stats',
-        params: {
-          'uid': userId,
-          'file_count_change': -1,
-          'space_change': -fileSize,
-        },
-      );
-    } catch (e) {
-      throw Exception('Failed to delete file: $e');
-    }
+  static String getContentType(String extension) {
+    return lookupMimeType('file.$extension') ?? 'application/octet-stream';
   }
 
-  // Helper method to format file size
-  static String _formatFileSize(int bytes) {
-    if (bytes < 1024) {
-      return "$bytes B";
-    } else if (bytes < 1024 * 1024) {
-      return "${(bytes / 1024).toStringAsFixed(1)} KB";
-    } else if (bytes < 1024 * 1024 * 1024) {
-      return "${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB";
-    } else {
-      return "${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB";
-    }
-  }
-
-  /// Get appropriate icon for file type
-  static IconData getFileIcon(String extension) {
+  static String getFileIcon(String extension) {
     switch (extension.toLowerCase()) {
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-      case 'gif':
-      case 'bmp':
-        return Icons.image;
-      case 'mp4':
-      case 'avi':
-      case 'mov':
-      case 'mkv':
-        return Icons.video_file;
-      case 'mp3':
-      case 'wav':
-      case 'ogg':
-        return Icons.audio_file;
       case 'pdf':
-        return Icons.picture_as_pdf;
+        return 'assets/icons/pdf.png';
       case 'doc':
       case 'docx':
-        return Icons.description;
+        return 'assets/icons/word.png';
       case 'xls':
       case 'xlsx':
-      case 'csv':
-        return Icons.table_chart;
-      case 'ppt':
-      case 'pptx':
-        return Icons.slideshow;
-      case 'zip':
-      case 'rar':
-        return Icons.folder_zip;
-      case 'txt':
-      case 'json':
-        return Icons.text_snippet;
+        return 'assets/icons/excel.png';
       default:
-        return Icons.insert_drive_file;
+        return 'assets/icons/file.png';
     }
   }
 
-  /// Get appropriate color for file type icon
   static Color getFileIconColor(String extension) {
     switch (extension.toLowerCase()) {
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-      case 'gif':
-      case 'bmp':
-        return Colors.blue;
-      case 'mp4':
-      case 'avi':
-      case 'mov':
-      case 'mkv':
-        return Colors.red;
-      case 'mp3':
-      case 'wav':
-      case 'ogg':
-        return Colors.purple;
       case 'pdf':
         return Colors.red;
       case 'doc':
@@ -320,71 +128,134 @@ class FileUploadService {
         return Colors.blue;
       case 'xls':
       case 'xlsx':
-      case 'csv':
         return Colors.green;
-      case 'ppt':
-      case 'pptx':
-        return Colors.orange;
-      case 'zip':
-      case 'rar':
-        return Colors.amber;
       default:
         return Colors.grey;
     }
   }
 
-  /// Get MIME content type based on file extension
-  static String getContentType(String extension) {
-    switch (extension.toLowerCase()) {
-      case 'jpg':
-      case 'jpeg':
-        return 'image/jpeg';
-      case 'png':
-        return 'image/png';
-      case 'gif':
-        return 'image/gif';
-      case 'bmp':
-        return 'image/bmp';
-      case 'mp4':
-        return 'video/mp4';
-      case 'avi':
-        return 'video/x-msvideo';
-      case 'mov':
-        return 'video/quicktime';
-      case 'mkv':
-        return 'video/x-matroska';
-      case 'mp3':
-        return 'audio/mpeg';
-      case 'wav':
-        return 'audio/wav';
-      case 'ogg':
-        return 'audio/ogg';
-      case 'pdf':
-        return 'application/pdf';
-      case 'doc':
-        return 'application/msword';
-      case 'docx':
-        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      case 'xls':
-        return 'application/vnd.ms-excel';
-      case 'xlsx':
-        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-      case 'csv':
-        return 'text/csv';
-      case 'ppt':
-        return 'application/vnd.ms-powerpoint';
-      case 'pptx':
-        return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-      case 'zip':
-        return 'application/zip';
-      case 'rar':
-        return 'application/x-rar-compressed';
-      case 'txt':
-        return 'text/plain';
-      case 'json':
-        return 'application/json';
-      default:
-        return 'application/octet-stream';
+  static String formatFileSize(int bytes) {
+    if (bytes <= 0) return '0 B';
+    const suffixes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var i = (log(bytes) / log(1024)).floor();
+    return '${(bytes / pow(1024, i)).toStringAsFixed(2)} ${suffixes[i]}';
+  }
+}
+
+// Example of how to use this in your widget class
+class FileUploadWidget extends StatefulWidget {
+  @override
+  _FileUploadWidgetState createState() => _FileUploadWidgetState();
+}
+
+class _FileUploadWidgetState extends State<FileUploadWidget> {
+  bool _isLoading = false;
+  String? _currentDirectoryId;
+  List<DriveFile> files = [];
+
+  void _handleFileUpload() async {
+    setState(() => _isLoading = true);
+
+    try {
+      // Pick a file
+      final file = await _pickFile();
+
+      if (file != null) {
+        // Get current directory ID if viewing a specific directory
+        String? directoryId =
+            _currentDirectoryId != null ? _currentDirectoryId : null;
+
+        // Upload the file
+        DriveFile? newFile = await FileUploadService.uploadFile(
+          file,
+          directoryId: directoryId,
+        );
+
+        if (newFile != null) {
+          setState(() {
+            files.add(newFile);
+          });
+          _showMessage("File uploaded successfully", Colors.green);
+        }
+      }
+    } catch (e) {
+      _showMessage("Upload error: ${e.toString()}", Colors.redAccent);
+    } finally {
+      setState(() => _isLoading = false);
     }
+  }
+
+  Future<File?> _pickFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles();
+      if (result != null && result.files.single.path != null) {
+        return File(result.files.single.path!);
+      }
+      return null;
+    } catch (e) {
+      _showMessage("Error picking file: ${e.toString()}", Colors.redAccent);
+      return null;
+    }
+  }
+
+  void _showMessage(String message, Color color) {
+    // Implement the function to show a message
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message), backgroundColor: color));
+  }
+
+  Future<void> _fetchUploadedFiles() async {
+    // Implement to fetch uploaded files
+    // For example:
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return;
+
+      final response = await Supabase.instance.client
+          .from('files')
+          .select()
+          .eq('user_id', userId)
+          .eq('directory_id', (_currentDirectoryId ?? null) as Object)
+          .order('created_at', ascending: false);
+
+      setState(() {
+        files =
+            (response as List)
+                .map(
+                  (file) => DriveFile(
+                    id: file['id'],
+                    icon: Icons.insert_drive_file,
+                    iconColor: FileUploadService.getFileIconColor(
+                      file['file_type'],
+                    ),
+                    title: file['name'],
+                    date: "Modified ${_formatDate(file['modified_at'])}",
+                    size: FileUploadService.formatFileSize(file['size']),
+                    previewUrl: file['shared_link'],
+                  ),
+                )
+                .toList();
+      });
+    } catch (e) {
+      _showMessage("Error fetching files: ${e.toString()}", Colors.redAccent);
+    }
+  }
+
+  String _formatDate(String dateString) {
+    final date = DateTime.parse(dateString);
+    final now = DateTime.now();
+    if (date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day) {
+      return "Today";
+    }
+    return "${date.day}/${date.month}/${date.year}";
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Your UI implementation
+    return Container(); // Placeholder
   }
 }

@@ -20,37 +20,40 @@ class _LoginPageState extends State<LoginPage> {
   int _failedAttempts = 0; // Tracks failed login attempts
 
   void signIn() async {
+    if (!mounted) return;
+
     setState(() {
-      _message = null; // Reset message
+      _isLoading = true;
+      _message = null;
     });
 
-    final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
-
-    if (email.isEmpty || password.isEmpty) {
-      _showMessage("All fields are required", Colors.redAccent);
-      return;
-    }
-    if (!_isValidEmail(email)) {
-      _showMessage("Invalid Email Format", Colors.redAccent);
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
     try {
+      final email = _emailController.text.trim();
+      final password = _passwordController.text.trim();
+
+      if (email.isEmpty || password.isEmpty) {
+        throw Exception("All fields are required");
+      }
+
+      if (!_isValidEmail(email)) {
+        throw Exception("Invalid Email Format");
+      }
+
       await authService.signInWithEmailPassword(email, password);
+
       if (mounted) {
-        _failedAttempts = 0; // Reset failed attempts on successful login
+        _failedAttempts = 0;
         _showMessage("Login successful!", Colors.greenAccent);
-        Future.delayed(const Duration(seconds: 2), () {
-          if (mounted) Navigator.pushReplacementNamed(context, '/drive');
-        });
+        Navigator.pushReplacementNamed(context, '/drive');
       }
     } catch (e) {
       if (mounted) {
-        _failedAttempts++; // Increase failed attempts count
-        _showMessage("Incorrect Email or Password", Colors.redAccent);
+        _failedAttempts++;
+        _showMessage(e.toString(), Colors.redAccent);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
   }

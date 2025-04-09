@@ -276,6 +276,16 @@ class _DrivePageState extends State<DrivePage> {
     _fetchUploadedFiles(); // Fetch files from Supabase on load
   }
 
+  // Add this method to filter files based on navigation selection
+  List<DriveFile> _getFilteredFiles() {
+    // If "Starred" is selected (index 1), filter only starred files
+    if (_selectedNavIndex == 1) {
+      return files.where((file) => file.isStarred).toList();
+    }
+    // Otherwise return all files (for "Files" tab or any other tab)
+    return files;
+  }
+
   void _handleFileUpload() async {
     try {
       // Pick file using FilePicker
@@ -312,16 +322,65 @@ class _DrivePageState extends State<DrivePage> {
     });
   }
 
-  void _toggleStar(int index) {
+  void _toggleStar(int index) async {
+    if (files[index].id == null) {
+      showMessage("Cannot update file: ID not found", Colors.redAccent);
+      return;
+    }
+
+    // Toggle the starred state locally for immediate feedback
+    final bool newStarredState = !files[index].isStarred;
+
+    // Update local state first for responsive UI
     setState(() {
       files[index] = DriveFile(
+        id: files[index].id,
         icon: files[index].icon,
         iconColor: files[index].iconColor,
         title: files[index].title,
         date: files[index].date,
-        isStarred: !files[index].isStarred,
+        size: files[index].size,
+        directoryName: files[index].directoryName,
+        directoryId: files[index].directoryId,
+        previewUrl: files[index].previewUrl,
+        isStarred: newStarredState,
       );
     });
+
+    try {
+      // Update the file's starred state in the database
+      await FileUploadService.FileUploadService.updateFileStarred(
+        files[index].id!,
+        newStarredState,
+      );
+
+      // Show success message
+      showMessage(
+        newStarredState ? "Added to starred" : "Removed from starred",
+        Colors.green,
+      );
+    } catch (e) {
+      // Revert the local state if the update fails
+      setState(() {
+        files[index] = DriveFile(
+          id: files[index].id,
+          icon: files[index].icon,
+          iconColor: files[index].iconColor,
+          title: files[index].title,
+          date: files[index].date,
+          size: files[index].size,
+          directoryName: files[index].directoryName,
+          directoryId: files[index].directoryId,
+          previewUrl: files[index].previewUrl,
+          isStarred: !newStarredState,
+        );
+      });
+
+      showMessage(
+        "Failed to update star status: ${e.toString()}",
+        Colors.redAccent,
+      );
+    }
   }
 
   void showMessage(String message, Color color) {
@@ -374,6 +433,63 @@ class _DrivePageState extends State<DrivePage> {
       showMessage("Failed to logout: ${e.toString()}", Colors.redAccent);
       debugPrint("Error: $e \n StackTrace: $stacktrace");
     }
+  }
+
+  void _confirmDeleteFile(DriveFile file) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete File'),
+          content: Text(
+            'Are you sure you want to delete "${file.title}"? This action cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close dialog
+              },
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.of(context).pop(); // Close dialog
+
+                // Show loading indicator
+                setState(() {
+                  _isLoading = true;
+                });
+
+                try {
+                  await FileUploadService.FileUploadService.deleteFile(
+                    file.id!,
+                  );
+
+                  // Remove file from UI
+                  setState(() {
+                    files.removeWhere((f) => f.id == file.id);
+                    _selectedFile = null; // Close preview
+                  });
+
+                  showMessage("File deleted successfully", Colors.green);
+                } catch (e) {
+                  showMessage(
+                    "Failed to delete file: ${e.toString()}",
+                    Colors.redAccent,
+                  );
+                } finally {
+                  setState(() {
+                    _isLoading = false;
+                  });
+                }
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -626,22 +742,61 @@ class _DrivePageState extends State<DrivePage> {
                                 color: Colors.blue,
                               ),
                             )
-                            : files.isEmpty
-                            ? const Center(child: Text(""))
+                            : _getFilteredFiles().isEmpty
+                            ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    _selectedNavIndex == 1
+                                        ? Icons.star_border
+                                        : Icons.folder_open,
+                                    size: 64,
+                                    color:
+                                        isDarkMode
+                                            ? Colors.grey[600]
+                                            : Colors.grey[400],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    _selectedNavIndex == 1
+                                        ? "No starred files"
+                                        : "No files found",
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color:
+                                          isDarkMode
+                                              ? Colors.grey[400]
+                                              : Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
                             : ListView.builder(
                               physics: const BouncingScrollPhysics(),
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16.0,
                                 vertical: 10.0,
                               ),
-                              itemCount: files.length,
+                              itemCount: _getFilteredFiles().length,
                               itemBuilder: (context, index) {
                                 return GestureDetector(
-                                  onTap: () => _selectFile(files[index]),
+                                  onTap:
+                                      () => _selectFile(
+                                        _getFilteredFiles()[index],
+                                      ),
                                   child: _buildFileItem(
-                                    file: files[index],
-                                    onStarToggle: () => _toggleStar(index),
-                                    isSelected: _selectedFile == files[index],
+                                    file: _getFilteredFiles()[index],
+                                    onStarToggle:
+                                        () => _toggleStar(
+                                          files.indexOf(
+                                            _getFilteredFiles()[index],
+                                          ),
+                                        ),
+                                    isSelected:
+                                        _selectedFile ==
+                                        _getFilteredFiles()[index],
                                     isDarkMode: isDarkMode,
                                     cardColor: cardColor,
                                     textColor: textColor,
@@ -814,7 +969,12 @@ class _DrivePageState extends State<DrivePage> {
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       GestureDetector(
-                        onTap: () => setState(() => _selectedNavIndex = 0),
+                        onTap:
+                            () => setState(() {
+                              _selectedNavIndex = 0;
+                              _selectedFile =
+                                  null; // Clear selected file when changing tabs
+                            }),
                         child: _buildBottomNavItem(
                           icon: Icons.description,
                           label: "Files",
@@ -822,7 +982,12 @@ class _DrivePageState extends State<DrivePage> {
                         ),
                       ),
                       GestureDetector(
-                        onTap: () => setState(() => _selectedNavIndex = 1),
+                        onTap:
+                            () => setState(() {
+                              _selectedNavIndex = 1;
+                              _selectedFile =
+                                  null; // Clear selected file when changing tabs
+                            }),
                         child: _buildBottomNavItem(
                           icon: Icons.star_border,
                           label: "Starred",
@@ -1034,6 +1199,9 @@ class _DrivePageState extends State<DrivePage> {
                   Icons.delete_outline,
                   "Delete",
                   textColor: isDarkMode ? Colors.grey[300]! : Colors.grey[700]!,
+                  onTap: () {
+                    _confirmDeleteFile(file);
+                  },
                 ),
               ],
             ),

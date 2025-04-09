@@ -206,23 +206,34 @@ class _LoginPageState extends State<LoginPage> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: signIn,
+                  onPressed: _isLoading ? null : signIn, // Disable when loading
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
+                    disabledBackgroundColor: Colors.blue.withOpacity(0.6),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
                     elevation: 5,
                     shadowColor: Colors.blue.withOpacity(0.3),
                   ),
-                  child: const Text(
-                    "Sign In",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child:
+                      _isLoading
+                          ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                          : const Text(
+                            "Sign In",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
                 ),
               ),
               const SizedBox(height: 16),

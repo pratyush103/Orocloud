@@ -136,6 +136,92 @@ class FileUploadService {
     var i = (log(bytes) / log(1024)).floor();
     return '${(bytes / pow(1024, i)).toStringAsFixed(2)} ${suffixes[i]}';
   }
+
+  static Future<bool> updateFileStarred(String fileId, bool isStarred) async {
+    try {
+      // Get the user ID
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Update the file's starred attribute
+      await _supabase
+          .from('files')
+          .update({'starred': isStarred})
+          .eq('id', fileId)
+          .eq('user_id', userId); // Ensure we only update the user's own files
+
+      return true;
+    } catch (e) {
+      throw Exception('Failed to update file: $e');
+    }
+  }
+
+  static Future<bool> deleteFile(String fileId) async {
+    try {
+      // Get the user ID
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // First get the file details to know the path and size
+      final fileData =
+          await _supabase
+              .from('files')
+              .select('bucket_path, size, directory_id')
+              .eq('id', fileId)
+              .eq('user_id', userId)
+              .single();
+
+      if (fileData == null) {
+        throw Exception(
+          'File not found or you do not have permission to delete it',
+        );
+      }
+
+      final String bucketPath = fileData['bucket_path'];
+      final int fileSize = fileData['size'];
+      final String? directoryId = fileData['directory_id'];
+
+      // Delete file from storage
+      await _supabase.storage.from('user_files').remove([bucketPath]);
+
+      // Delete file from database
+      await _supabase
+          .from('files')
+          .delete()
+          .eq('id', fileId)
+          .eq('user_id', userId);
+
+      // Update directory files count if the file was in a directory
+      if (directoryId != null) {
+        await _supabase.rpc(
+          'update_directory_files_count',
+          params: {
+            'dir_id': directoryId,
+            'count_change': -1, // Decrease count by 1
+            'size_change': -fileSize, // Decrease size
+          },
+        );
+      }
+
+      // Update user file stats
+      await _supabase.rpc(
+        'update_user_file_stats',
+        params: {
+          'uid': userId,
+          'file_count_change': -1, // Decrease count by 1
+          'space_change': -fileSize, // Decrease used space
+        },
+      );
+
+      return true;
+    } catch (e) {
+      throw Exception('Failed to delete file: $e');
+    }
+  }
 }
 
 // Example of how to use this in your widget class

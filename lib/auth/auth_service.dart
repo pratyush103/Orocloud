@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:orocloud/services/user_management_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,6 +11,14 @@ class AuthService {
 
   Future<void> signInWithEmailPassword(String email, String password) async {
     try {
+      // Check for internet connectivity first
+      bool hasInternet = await _checkInternetConnection();
+      if (!hasInternet) {
+        throw Exception(
+          'No internet connection. Please check your network settings and try again.',
+        );
+      }
+
       final response = await _supabase.auth.signInWithPassword(
         email: email,
         password: password,
@@ -32,6 +41,12 @@ class AuthService {
       }
     } catch (e) {
       print('Login error: $e');
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('host lookup')) {
+        throw Exception(
+          'Network error. Please check your connection and try again.',
+        );
+      }
       throw Exception('Login failed: $e');
     }
   }
@@ -157,5 +172,14 @@ class AuthService {
   Future<void> _clearSession() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('session');
+  }
+
+  Future<bool> _checkInternetConnection() async {
+    try {
+      final result = await InternetAddress.lookup('google.com');
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } on SocketException catch (_) {
+      return false;
+    }
   }
 }

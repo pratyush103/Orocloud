@@ -1,0 +1,5 @@
+package com.mvp.orocloud
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity : FlutterActivity()

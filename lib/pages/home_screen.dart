@@ -3,10 +3,12 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:orocloud/models/drive_file.dart'; // Import DriveFile model
+import 'package:orocloud/pages/image_viewer_screen.dart';
+import 'package:orocloud/pages/pdf_viewer_screen.dart';
 import 'package:orocloud/services/file_upload_service.dart'
     as FileUploadService;
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
   runApp(const MyApp());
@@ -119,6 +121,36 @@ class DrivePage extends StatefulWidget {
 
 class _DrivePageState extends State<DrivePage> {
   final List<DriveFile> files = [];
+
+  void _handleFileView(DriveFile file) {
+    final fileExtension = file.title.split('.').last.toLowerCase();
+
+    if (['jpg', 'jpeg', 'png', 'gif'].contains(fileExtension)) {
+      // Handle image files
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ImageViewerScreen(imageUrl: file.previewUrl!),
+        ),
+      );
+    } else if (fileExtension == 'pdf') {
+      // Handle PDF files
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PDFViewerScreen(pdfUrl: file.previewUrl!),
+        ),
+      );
+    } else {
+      // Handle unsupported file types
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This file type is not supported for viewing'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   Future<void> _fetchUploadedFiles() async {
     setState(() => _isLoading = true);
@@ -964,6 +996,16 @@ class _DrivePageState extends State<DrivePage> {
                   Icons.remove_red_eye,
                   "View",
                   textColor: isDarkMode ? Colors.grey[300]! : Colors.grey[700]!,
+                  onTap: () {
+                    if (_selectedFile?.previewUrl != null) {
+                      _handleFileView(_selectedFile!);
+                    } else {
+                      showMessage(
+                        "Preview URL not available for this file",
+                        Colors.redAccent,
+                      );
+                    }
+                  },
                 ),
                 _buildPreviewAction(
                   Icons.edit,

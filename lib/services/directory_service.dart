@@ -3,32 +3,25 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class DirectoryService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  Future<Map<String, dynamic>> getDirectoryContents(int? directoryId) async {
+  Future<Map<String, dynamic>> getDirectoryContents(String? directoryId) async {
     try {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) throw Exception('User not authenticated');
 
-      // Fix: Query syntax for Supabase Flutter
+      // Ensure directoryId is treated as a String
       final directories = await _supabase
           .from('directories')
           .select()
           .eq('user_id', userId)
-          .eq(
-            directoryId != null ? 'parent_id' : 'parent_id',
-            (directoryId ?? null) as Object,
-          )
+          .eq('parent_id', directoryId ?? '')
           .order('created_at')
           .then((data) => data as List<dynamic>);
 
-      // Fix: Query syntax for Supabase Flutter
       final files = await _supabase
           .from('files')
           .select()
           .eq('user_id', userId)
-          .eq(
-            directoryId != null ? 'parent_id' : 'parent_id',
-            (directoryId ?? null) as Object,
-          )
+          .eq('directory_id', directoryId ?? '')
           .order('created_at', ascending: false)
           .then((data) => data as List<dynamic>);
 
@@ -38,12 +31,11 @@ class DirectoryService {
     }
   }
 
-  Future<void> createDirectory(String name, int? parentId) async {
+  Future<void> createDirectory(String name, String? parentId) async {
     try {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) throw Exception('User not authenticated');
 
-      // Fix: Insert syntax for Supabase Flutter
       await _supabase.from('directories').insert({
         'user_id': userId,
         'parent_id': parentId,
@@ -57,7 +49,6 @@ class DirectoryService {
         'total_size': 0,
       });
 
-      // Fix: RPC call syntax for Supabase Flutter
       await _supabase.rpc(
         'update_user_directory_count',
         params: {'uid': userId, 'count_change': 1},
@@ -67,7 +58,9 @@ class DirectoryService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getBreadcrumbPath(int? directoryId) async {
+  Future<List<Map<String, dynamic>>> getBreadcrumbPath(
+    String? directoryId,
+  ) async {
     if (directoryId == null) {
       return [
         {"name": "My Files", "id": null},
@@ -76,10 +69,9 @@ class DirectoryService {
 
     try {
       List<Map<String, dynamic>> breadcrumbs = [];
-      int? currentDirId = directoryId;
+      String? currentDirId = directoryId;
 
       while (currentDirId != null) {
-        // Fix: Query syntax for Supabase Flutter
         final response =
             await _supabase
                 .from('directories')
@@ -87,14 +79,14 @@ class DirectoryService {
                 .eq('id', currentDirId)
                 .single();
 
-        final directory = response as Map<String, dynamic>;
+        final directory = response;
 
         breadcrumbs.insert(0, {
           "name": directory['name'],
           "id": directory['id'],
         });
 
-        currentDirId = directory['parent_id'] as int?;
+        currentDirId = directory['parent_id'] as String?;
       }
 
       breadcrumbs.insert(0, {"name": "My Files", "id": null});

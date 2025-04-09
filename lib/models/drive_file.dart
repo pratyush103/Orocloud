@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class DriveFile {
-  final int? id;
+  final String? id;
   final IconData icon;
   final Color iconColor;
   final String title;
@@ -10,7 +10,7 @@ class DriveFile {
   final bool isStarred;
   final String? size;
   final String? directoryName;
-  final int? directoryId;
+  final String? directoryId;
 
   DriveFile({
     this.id,

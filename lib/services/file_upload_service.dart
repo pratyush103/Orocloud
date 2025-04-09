@@ -222,6 +222,30 @@ class FileUploadService {
       throw Exception('Failed to delete file: $e');
     }
   }
+
+  static Future<bool> renameFile(String fileId, String newName) async {
+    try {
+      // Get the user ID
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Update the file's name
+      await _supabase
+          .from('files')
+          .update({
+            'name': newName,
+            'modified_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', fileId)
+          .eq('user_id', userId); // Ensure we only update the user's own files
+
+      return true;
+    } catch (e) {
+      throw Exception('Failed to rename file: $e');
+    }
+  }
 }
 
 // Example of how to use this in your widget class

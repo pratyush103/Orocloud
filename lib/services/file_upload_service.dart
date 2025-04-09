@@ -19,9 +19,6 @@ class FileUploadService {
         throw Exception('User not authenticated');
       }
 
-      // Convert directoryId to int if it's a String, or use null
-      int? dirId = directoryId != null ? int.tryParse(directoryId) : null;
-
       // Upload the file to Supabase Storage
       final String fileName =
           "${DateTime.now().millisecondsSinceEpoch}_${file.path.split('/').last}";
@@ -44,8 +41,7 @@ class FileUploadService {
       final fileInsertResponse =
           await _supabase.from('files').insert({
             'user_id': userId,
-            'directory_id':
-                dirId, // This is now properly handling the int? type
+            'directory_id': directoryId, // UUID or null
             'name': file.path.split('/').last,
             'size': await file.length(),
             'file_type': file.path.split('.').last,
@@ -65,11 +61,11 @@ class FileUploadService {
           }).select();
 
       // Update directory files count
-      if (dirId != null) {
+      if (directoryId != null) {
         await _supabase.rpc(
           'update_directory_files_count',
           params: {
-            'dir_id': dirId, // This is now properly handled
+            'dir_id': directoryId, // Use the UUID string directly
             'count_change': 1,
             'size_change': await file.length(),
           },
@@ -207,7 +203,6 @@ class _FileUploadWidgetState extends State<FileUploadWidget> {
 
   Future<void> _fetchUploadedFiles() async {
     // Implement to fetch uploaded files
-    // For example:
     try {
       final userId = Supabase.instance.client.auth.currentUser?.id;
       if (userId == null) return;
@@ -216,7 +211,7 @@ class _FileUploadWidgetState extends State<FileUploadWidget> {
           .from('files')
           .select()
           .eq('user_id', userId)
-          .eq('directory_id', (_currentDirectoryId ?? null) as Object)
+          .eq('directory_id', _currentDirectoryId ?? '')
           .order('created_at', ascending: false);
 
       setState(() {

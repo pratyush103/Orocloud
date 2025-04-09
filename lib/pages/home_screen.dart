@@ -6,6 +6,7 @@ import 'package:orocloud/models/drive_file.dart'; // Import DriveFile model
 import 'package:orocloud/services/file_upload_service.dart'
     as FileUploadService;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 
 void main() {
   runApp(const MyApp());
@@ -137,7 +138,7 @@ class _DrivePageState extends State<DrivePage> {
           .order('name');
 
       // Create a map for quick directory lookups
-      Map<int, Map<String, dynamic>> directoryMap = {};
+      Map<String, Map<String, dynamic>> directoryMap = {};
       for (var dir in directories) {
         directoryMap[dir['id']] = dir;
       }
@@ -154,13 +155,15 @@ class _DrivePageState extends State<DrivePage> {
             // Get directory name or "Unknown" if not found
             String directoryName = "Unknown";
             if (file['directories'] != null) {
-              directoryName = file['directories']['name'];
+              directoryName = file['directories']['name'] as String;
             }
 
             // Format date for display
             String formattedDate = "Unknown date";
             if (file['modified_at'] != null) {
-              DateTime modifiedDate = DateTime.parse(file['modified_at']);
+              DateTime modifiedDate = DateTime.parse(
+                file['modified_at'] as String,
+              );
               final now = DateTime.now();
               final difference = now.difference(modifiedDate);
 
@@ -179,7 +182,7 @@ class _DrivePageState extends State<DrivePage> {
             // Calculate file size for display
             String fileSize = "Unknown";
             if (file['size'] != null) {
-              final sizeInBytes = int.tryParse(file['size']) ?? 0;
+              final sizeInBytes = file['size'] as int;
               if (sizeInBytes < 1024) {
                 fileSize = "$sizeInBytes B";
               } else if (sizeInBytes < 1024 * 1024) {
@@ -194,18 +197,18 @@ class _DrivePageState extends State<DrivePage> {
             }
 
             return DriveFile(
-              id: file['id'],
+              id: file['id'] as String,
               icon: Icons.insert_drive_file, // Use a default icon for now
-              iconColor: FileUploadService.getFileIconColor(
-                file['file_type'] ?? '',
+              iconColor: FileUploadService.FileUploadService.getFileIconColor(
+                file['file_type'] as String? ?? '',
               ),
-              title: file['name'],
+              title: file['name'] as String,
               date: formattedDate,
-              previewUrl: file['shared_link'],
+              previewUrl: file['shared_link'] as String?,
               size: fileSize,
               directoryName: directoryName,
-              directoryId: file['directory_id'],
-              isStarred: file['starred'] ?? false,
+              directoryId: file['directory_id'] as String?,
+              isStarred: file['starred'] as bool? ?? false,
             );
           }).toList();
 
@@ -214,11 +217,15 @@ class _DrivePageState extends State<DrivePage> {
         files.addAll(fetchedFiles);
         _isLoading = false;
       });
-    } catch (e) {
+    } catch (e, stackTrace) {
       setState(() {
         _isLoading = false;
       });
-      showMessage("Error loading files: ${e.toString()}", Colors.redAccent);
+      showMessage(
+        "Error loading files: ${e.toString()}: $stackTrace",
+        Colors.redAccent,
+      );
+      debugPrint('Stack trace: $stackTrace  ${e.toString()}');
     }
   }
 
@@ -239,28 +246,25 @@ class _DrivePageState extends State<DrivePage> {
 
   void _handleFileUpload() async {
     try {
-      Future<File?> _pickFile() async {
-        try {
-          final result = await FilePicker.platform.pickFiles();
-          if (result != null) {
-            return File(result.files.single.path!);
-          }
-          return null;
-        } catch (e) {
-          showMessage("Error picking file: ${e.toString()}", Colors.redAccent);
-          return null;
+      // Pick file using FilePicker
+      final result = await FilePicker.platform.pickFiles();
+      if (result != null && result.files.single.path != null) {
+        File selectedFile = File(result.files.single.path!);
+
+        // Upload the file
+        DriveFile? newFile = await FileUploadService
+            .FileUploadService.uploadFile(selectedFile);
+
+        if (newFile != null) {
+          showMessage("File uploaded successfully", Colors.green);
+
+          // Refresh file list after upload
+          await _fetchUploadedFiles();
         }
       }
-
-      if (files != null) {
-        DriveFile? newFile = await FileUploadService.uploadFile(files as File);
-        showMessage("File uploaded successfully", Colors.green);
-
-        // ✅ Always refresh file list after upload
-        await _fetchUploadedFiles();
-      }
-    } catch (e) {
-      showMessage(e.toString(), Colors.redAccent);
+    } catch (e, stacktrace) {
+      showMessage("Error: ${e.toString()}", Colors.redAccent);
+      debugPrint("Error: $e \n StackTrace: $stacktrace");
     }
   }
 
@@ -330,12 +334,13 @@ class _DrivePageState extends State<DrivePage> {
 
       // Show success message
       showMessage("Logged out successfully", Colors.green);
-    } catch (e) {
+    } catch (e, stacktrace) {
       // Close the loading dialog
       Navigator.pop(context);
 
       // Show error message
       showMessage("Failed to logout: ${e.toString()}", Colors.redAccent);
+      debugPrint("Error: $e \n StackTrace: $stacktrace");
     }
   }
 
@@ -969,6 +974,19 @@ class _DrivePageState extends State<DrivePage> {
                   Icons.share,
                   "Share",
                   textColor: isDarkMode ? Colors.grey[300]! : Colors.grey[700]!,
+                  onTap: () {
+                    if (file.previewUrl != null) {
+                      Share.share(
+                        'Check out this file from Orocloud: ${file.previewUrl}',
+                        subject: 'Sharing "${file.title}" from Orocloud',
+                      );
+                    } else {
+                      showMessage(
+                        "This file doesn't have a valid sharing URL",
+                        Colors.redAccent,
+                      );
+                    }
+                  },
                 ),
                 _buildPreviewAction(
                   Icons.delete_outline,
@@ -987,13 +1005,17 @@ class _DrivePageState extends State<DrivePage> {
     IconData icon,
     String label, {
     required Color textColor,
+    VoidCallback? onTap,
   }) {
-    return Column(
-      children: [
-        Icon(icon, color: textColor, size: 20),
-        const SizedBox(height: 4),
-        Text(label, style: TextStyle(fontSize: 12, color: textColor)),
-      ],
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Icon(icon, color: textColor, size: 20),
+          const SizedBox(height: 4),
+          Text(label, style: TextStyle(fontSize: 12, color: textColor)),
+        ],
+      ),
     );
   }
 

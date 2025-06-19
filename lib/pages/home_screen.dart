@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+
 import 'package:orocloud/models/drive_file.dart'; // Import DriveFile model
 import 'package:orocloud/pages/image_viewer_screen.dart';
 import 'package:orocloud/pages/pdf_viewer_screen.dart';
@@ -9,6 +10,8 @@ import 'package:orocloud/services/file_upload_service.dart'
     as FileUploadService;
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:orocloud/utils/image_helper.dart';
+import 'package:orocloud/pages/document_scanner_page.dart';
 
 void main() {
   runApp(const MyApp());
@@ -620,6 +623,77 @@ class _DrivePageState extends State<DrivePage> {
     );
   }
 
+  // This boolean helps prevent multiple concurrent calls
+  bool _isProcessingImage = false;
+
+  Future<void> _handleProfilePictureUpdate() async {
+    // Prevent multiple calls
+    if (_isProcessingImage) return;
+
+    try {
+      _isProcessingImage = true;
+
+      // Use our new helper method
+      final File? croppedImageFile = await ImageHelper.pickAndCropImage(
+        square: true,
+        title: 'Crop Profile Picture',
+      );
+
+      // If user cancelled or cropping failed, just return
+      if (croppedImageFile == null || !mounted) return;
+
+      // Show loading
+      setState(() => _isLoading = true);
+
+      try {
+        final userId = Supabase.instance.client.auth.currentUser?.id;
+        if (userId == null) {
+          throw Exception('User not authenticated');
+        }
+
+        final String filePath = "profile_pictures/$userId/profile.jpg";
+
+        // Upload to Supabase with proper error handling
+        await Supabase.instance.client.storage
+            .from('user_files')
+            .uploadBinary(
+              filePath,
+              await croppedImageFile.readAsBytes(),
+              fileOptions: FileOptions(contentType: 'image/jpeg', upsert: true),
+            );
+
+        if (!mounted) return;
+
+        final String publicUrl = Supabase.instance.client.storage
+            .from('user_files')
+            .getPublicUrl(filePath);
+
+        await Supabase.instance.client
+            .from('users')
+            .update({'profile_picture': publicUrl})
+            .eq('id', userId);
+
+        if (!mounted) return;
+        showMessage("Profile picture updated successfully", Colors.green);
+
+        // Refresh profile data
+        await _getUserProfile();
+      } catch (e) {
+        if (!mounted) return;
+        showMessage(
+          "Failed to update profile picture: ${e.toString()}",
+          Colors.redAccent,
+        );
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
+    } finally {
+      _isProcessingImage = false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isDarkMode =
@@ -1099,8 +1173,17 @@ class _DrivePageState extends State<DrivePage> {
                         InkWell(
                           // Add InkWell for tap functionality
                           onTap: () {
-                            // Handle scan to PDF action
-                            _toggleUploadMenu(); // Close menu after selection
+                            // Close the upload menu first
+                            _toggleUploadMenu();
+
+                            // Navigate to the document scanner page
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder:
+                                    (context) => const DocumentScannerPage(),
+                              ),
+                            );
                           },
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
@@ -1623,10 +1706,46 @@ class _DrivePageState extends State<DrivePage> {
             children: <Widget>[
               const SizedBox(height: 16),
               // Profile avatar
-              const CircleAvatar(
-                radius: 50,
-                backgroundColor: Colors.blue,
-                child: Icon(Icons.person, size: 50, color: Colors.white),
+              GestureDetector(
+                onTap: () => _handleProfilePictureUpdate(),
+                child: Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 50,
+                      backgroundColor: Colors.blue,
+                      backgroundImage:
+                          userProfile != null &&
+                                  userProfile['profile_picture'] != null
+                              ? NetworkImage(userProfile['profile_picture'])
+                              : null,
+                      child:
+                          userProfile != null &&
+                                  userProfile['profile_picture'] != null
+                              ? null
+                              : const Icon(
+                                Icons.person,
+                                size: 50,
+                                color: Colors.white,
+                              ),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.blue,
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        padding: const EdgeInsets.all(4),
+                        child: const Icon(
+                          Icons.camera_alt,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 24),
 
